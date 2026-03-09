@@ -1,0 +1,14 @@
+# Local Netlify folder
+.netlify
+node_modules
+.next
+.env*
+.DS_Store
+.DS_Store
+.gitnexus
+
+# IA & Build Info
+.claude/
+AGENTS.md
+CLAUDE.md
+tsconfig.tsbuildinfo

@@ -1,0 +1,26 @@
+{
+  "name": "fresh-food-panama-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@netlify/functions": "^2.7.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "axios": "^1.13.6",
+    "lucide-react": "^0.575.0",
+    "next": "^14.2.5",
+    "pdfkit": "^0.17.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/pdfkit": "^0.17.5",
+    "@types/react": "19.2.14",
+    "typescript": "5.9.3"
+  }
+}

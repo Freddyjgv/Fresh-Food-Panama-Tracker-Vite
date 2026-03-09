@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[functions."renderQuotePdf"]
+  included_files = [
+    "public/brand/**"
+  ]
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
