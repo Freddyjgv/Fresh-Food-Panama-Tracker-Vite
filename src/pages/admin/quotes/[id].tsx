@@ -61,6 +61,11 @@ export default function AdminQuoteDetailPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [varieties, setVarieties] = useState<string[]>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const handleDownloadPdf = async () => {
+  if (!id) return;
+  // Esto abre la Netlify Function que ya tienes creada
+  window.open(`/api/renderQuotePdf?id=${id}`, '_blank');
+};
 
   // ESTADOS DE LA COTIZACIÓN
   const [status, setStatus] = useState("draft");
@@ -288,6 +293,39 @@ export default function AdminQuoteDetailPage() {
                   <span className="kpi-val">USD {analysis.perBox.toFixed(2)}</span>
                   <span className="kpi-lab">PRECIO POR CAJA</span>
                </div>
+               <div className="head-actions">
+   <div className="kpi-box">
+      <span className="kpi-val">USD {analysis.perBox.toFixed(2)}</span>
+      <span className="kpi-lab">PRECIO POR CAJA</span>
+   </div>
+
+   {/* --- PEGA ESTO AQUÍ --- */}
+   <button 
+     className="btn-pdf" 
+     onClick={handleDownloadPdf}
+     style={{
+       background: '#f8fafc',
+       color: '#64748b',
+       border: '1px solid #e2e8f0',
+       padding: '10px 18px',
+       borderRadius: '8px',
+       fontWeight: '700',
+       display: 'flex',
+       gap: '8px',
+       alignItems: 'center',
+       cursor: 'pointer'
+     }}
+   >
+     <FileText size={18}/>
+     PDF
+   </button>
+   {/* ----------------------- */}
+
+   <button className="btn-save" onClick={handleSave} disabled={busy}>
+     {busy ? <Loader2 size={18} className="spin"/> : <Save size={18}/>}
+     {busy ? 'Guardando...' : 'Guardar'}
+   </button>
+</div>
                <button className="btn-save" onClick={handleSave} disabled={busy}>
                  {busy ? <Loader2 size={18} className="spin"/> : <Save size={18}/>}
                  {busy ? 'Guardando...' : 'Guardar'}
