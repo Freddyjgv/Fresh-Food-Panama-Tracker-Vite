@@ -100,7 +100,7 @@ export default function ShipmentDrawer({ isOpen, onClose, clientId, clientName, 
         brix_grade: formData.brix_grade
       };
 
-      const response = await fetch(`${getApiBase()}/.netlify/functions/createShipment`, {
+      const response = await fetch(`/.netlify/functions/createShipment`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

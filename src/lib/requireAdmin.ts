@@ -30,8 +30,7 @@ export async function requireAdminOrRedirect(): Promise<Result> {
 
     // Intentamos primero whoami (normalmente es el que ya usaste)
     // y si no existe, caemos a getMyProfile.
-    const base = getApiBase();
-    const endpoints = [`${base}/.netlify/functions/whoami`, `${base}/.netlify/functions/getMyProfile`];
+    const endpoints = [`/.netlify/functions/whoami`, `/.netlify/functions/getMyProfile`];
 
     let me: any = null;
     let lastStatus = 0;

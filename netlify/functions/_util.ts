@@ -14,11 +14,16 @@ export const sbAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 // 2. Encabezados Globales (Soluciona el error de CORS y Cache-Control)
+// netlify/functions/_util.ts
+
 export const commonHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, cache-control",
+  "Access-Control-Allow-Headers": "authorization, content-type, cache-control, x-requested-with",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+  // AÑADE ESTO: Evita que Safari se confunda con el estado de la sesión
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
 };
 
 // 3. Funciones de Respuesta (Lo que pedía el error: json y text)

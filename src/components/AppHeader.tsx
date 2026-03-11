@@ -41,7 +41,7 @@ export function AppHeader({ variant }: { variant: "client" | "admin" }) {
         return;
       }
 
-      const res = await fetch(`${getApiBase()}/.netlify/functions/whoami`, {
+      const res = await fetch(`/.netlify/functions/whoami`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

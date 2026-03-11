@@ -124,7 +124,7 @@ export default function AdminQuotesIndex() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const t = new Date().getTime();
-      const url = `${getApiBase()}/.netlify/functions/listQuotes?${queryString}&t=${t}`;
+      const url = `/.netlify/functions/listQuotes?${queryString}&t=${t}`;
       const res = await fetch(url, {
         headers: { 
           Authorization: `Bearer ${session?.access_token}`,

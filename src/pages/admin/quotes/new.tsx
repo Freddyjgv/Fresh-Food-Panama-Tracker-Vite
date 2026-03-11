@@ -69,7 +69,7 @@ export default function AdminQuoteNew() {
       const token = sessionData.session?.access_token;
       if (!token) return;
 
-      const res = await fetch(`${getApiBase()}/.netlify/functions/listClients`, {
+      const res = await fetch(`/.netlify/functions/listClients`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dataJson = await res.json();
@@ -114,7 +114,7 @@ export default function AdminQuoteNew() {
         if (!newClient.company_name || !newClient.contact_email) {
           throw new Error("Nombre de empresa y Email son obligatorios");
         }
-        const resClient = await fetch(`${getApiBase()}/.netlify/functions/createClient`, {
+        const resClient = await fetch(`/.netlify/functions/createClient`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ ...newClient, mode: "invite" }),
@@ -129,7 +129,7 @@ export default function AdminQuoteNew() {
       }
 
       // ✅ INSERCIÓN LIMPIA: Evita el error de NOT NULL constraint
-      const resQuote = await fetch(`${getApiBase()}/.netlify/functions/createQuote`, {
+      const resQuote = await fetch(`/.netlify/functions/createQuote`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
