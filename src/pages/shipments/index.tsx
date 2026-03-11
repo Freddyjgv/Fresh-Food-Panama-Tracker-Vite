@@ -80,7 +80,7 @@ export default function ShipmentsPage() {
     });
 
     try {
-      const res = await fetch(`/.netlify/functions/listShipments?${params.toString()}`, {
+      const res = await fetch(`${getApiBase()}/.netlify/functions/listShipments?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();

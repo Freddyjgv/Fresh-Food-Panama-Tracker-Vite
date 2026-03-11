@@ -151,7 +151,7 @@ export default function ShipmentDetailPage() {
         return; 
       }
 
-      const res = await fetch(`/.netlify/functions/getShipment?id=${encodeURIComponent(shipmentId)}`, {
+      const res = await fetch(`${getApiBase()}/.netlify/functions/getShipment?id=${encodeURIComponent(shipmentId)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -174,7 +174,7 @@ export default function ShipmentDetailPage() {
   async function download(fileId: string) {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
-    const res = await fetch(`/.netlify/functions/getDownloadUrl?fileId=${encodeURIComponent(fileId)}`, {
+    const res = await fetch(`${getApiBase()}/.netlify/functions/getDownloadUrl?fileId=${encodeURIComponent(fileId)}`, {
         headers: { Authorization: `Bearer ${token}` }
     });
     const { url } = await res.json();

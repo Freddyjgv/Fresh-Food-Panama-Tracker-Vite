@@ -16,14 +16,13 @@ export const sbAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
-// 2. Encabezados Globales (Soluciona CORS y errores de seguridad en Safari/Localhost)
+// 2. Encabezados Globales (Soluciona CORS desde localhost y otros orígenes)
 export const commonHeaders = {
   "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*", // En producción podrías limitarlo a tu dominio
-  "Access-Control-Allow-Headers": "authorization, content-type, cache-control, x-requested-with",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, Cache-Control, X-Requested-With, Accept",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Max-Age": "86400",
-  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
 };
 
 // 3. Funciones de Respuesta Estándar

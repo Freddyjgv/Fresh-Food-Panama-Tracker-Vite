@@ -58,8 +58,7 @@ export function AdminLayout({ title, subtitle, children }: { title?: string; sub
       const { data } = await supabase.auth.getSession();
       if (!data.session?.access_token) { router.push("/login"); return; }
       
-      // CAMBIO CLAVE: Quitamos getApiBase() y usamos ruta absoluta local
-      const res = await fetch("/.netlify/functions/getMyProfile", {
+      const res = await fetch(`${getApiBase()}/.netlify/functions/getMyProfile`, {
         headers: { Authorization: `Bearer ${data.session.access_token}` },
       });
       

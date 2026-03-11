@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const QuoteTemplate = ({ data }: { data: any }) => {
+export const QuoteTemplate = ({ data, viewMode }: { data: any; viewMode?: string }) => {
   if (!data) return null;
 
   const fCurrency = (val: number) => 

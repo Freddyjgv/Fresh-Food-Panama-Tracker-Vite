@@ -5,6 +5,7 @@ import {
   Thermometer, Droplets, Calculator, MapPin, Shield, ArrowRight, Package 
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
+import { getApiBase } from "../../../lib/apiBase";
 import { requireAdminOrRedirect } from "../../../lib/requireAdmin";
 import { AdminLayout } from "../../../components/AdminLayout";
 import { LocationSelector } from "../../../components/LocationSelector";
@@ -75,7 +76,7 @@ export default function AdminQuoteDetailPage() {
 
   // 2. Construimos la URL pasando el TOKEN como parámetro
   // Esto permite que la pestaña nueva se identifique ante Netlify
-  const url = `/.netlify/functions/renderQuotePdf?id=${id}&token=${token}&lang=es&variant=2`;
+  const url = `${getApiBase()}/.netlify/functions/renderQuotePdf?id=${id}&token=${token}&lang=es&variant=2`;
   
   // 3. Abrimos la pestaña
   window.open(url, '_blank');

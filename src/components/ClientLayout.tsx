@@ -73,7 +73,7 @@ export function ClientLayout({
       const token = await getTokenOrRedirect();
       if (!token) return;
 
-      const res = await fetch(`/.netlify/functions/getMyProfile`, {
+      const res = await fetch(`${getApiBase()}/.netlify/functions/getMyProfile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;

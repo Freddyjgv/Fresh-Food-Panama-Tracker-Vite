@@ -56,9 +56,10 @@ export default function AdminUsersPage() {
         console.warn("⚠️ [DEBUG] No hay sesión activa en Supabase");
       }
 
+      const base = getApiBase();
       const endpoint = activeTab === 'clients' 
-        ? '/.netlify/functions/listClients' 
-        : '/.netlify/functions/listUsers';
+        ? `${base}/.netlify/functions/listClients` 
+        : `${base}/.netlify/functions/listUsers`;
       
       console.log(`📡 [DEBUG] Fetching a: ${endpoint}`);
 
@@ -121,7 +122,7 @@ export default function AdminUsersPage() {
       const { data: { session } } = await supabase.auth.getSession();
       
       // 2. Llamada a createClient (La función de Netlify que analizamos)
-      const res = await fetch('/.netlify/functions/createClient', {
+      const res = await fetch(`${getApiBase()}/.netlify/functions/createClient`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({ ...f, logo_url: finalLogoUrl })

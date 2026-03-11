@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/router';
 
-export const QuoteTemplate = ({ data }: { data: any }) => {
+export const QuoteTemplate = ({ data, viewMode }: { data: any; viewMode?: string }) => {
   if (!data) return <p>Cargando datos...</p>;
 
   return (
@@ -180,3 +181,12 @@ export const QuoteTemplate = ({ data }: { data: any }) => {
     </div>
   );
 };
+
+/** Página no diseñada para acceso directo; redirige al listado de cotizaciones */
+export default function QuoteViewPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/admin/quotes');
+  }, [router]);
+  return null;
+}
