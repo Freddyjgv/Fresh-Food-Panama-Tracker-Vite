@@ -1,10 +1,13 @@
-// netlify/functions/_util.ts
 import { createClient } from "@supabase/supabase-js";
 import type { HandlerEvent } from "@netlify/functions";
 
-// 1. Inicialización de Supabase
+// 1. Inicialización Singleton con Service Role (Uso interno de funciones)
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error("Faltan variables de entorno de Supabase en las funciones.");
+}
 
 export const sbAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { 
@@ -13,20 +16,17 @@ export const sbAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
-// 2. Encabezados Globales (Soluciona el error de CORS y Cache-Control)
-// netlify/functions/_util.ts
-
+// 2. Encabezados Globales (Soluciona CORS y errores de seguridad en Safari/Localhost)
 export const commonHeaders = {
   "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "*", // En producción podrías limitarlo a tu dominio
   "Access-Control-Allow-Headers": "authorization, content-type, cache-control, x-requested-with",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Max-Age": "86400",
-  // AÑADE ESTO: Evita que Safari se confunda con el estado de la sesión
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
 };
 
-// 3. Funciones de Respuesta (Lo que pedía el error: json y text)
+// 3. Funciones de Respuesta Estándar
 export function json(statusCode: number, body: any) {
   return {
     statusCode,
@@ -43,7 +43,7 @@ export function text(statusCode: number, message: string) {
   };
 }
 
-// 4. Lógica de Sesión (Lo que pedía el error: getUserAndProfile)
+// 4. Lógica de Autenticación y Perfil
 export function getBearerToken(event: HandlerEvent) {
   const h = event.headers.authorization || event.headers.Authorization;
   if (!h) return null;
@@ -51,14 +51,20 @@ export function getBearerToken(event: HandlerEvent) {
   return m?.[1] ?? null;
 }
 
+export function normRole(role: any) {
+  return String(role ?? "").trim().toLowerCase();
+}
+
 export async function getUserAndProfile(event: HandlerEvent) {
   const token = getBearerToken(event);
   if (!token) return { token: null, user: null, profile: null };
 
   try {
+    // Verificamos el token con Supabase Auth
     const { data: authData, error: authError } = await sbAdmin.auth.getUser(token);
     if (authError || !authData?.user) return { token, user: null, profile: null };
 
+    // Buscamos el perfil asociado en la tabla pública de perfiles
     const { data: profile, error: pErr } = await sbAdmin
       .from("profiles")
       .select("user_id, role, client_id")
@@ -70,7 +76,7 @@ export async function getUserAndProfile(event: HandlerEvent) {
     return { 
       token, 
       user: authData.user, 
-      profile: profile ? { ...profile, role: String(profile.role).toLowerCase() } : null 
+      profile: profile ? { ...profile, role: normRole(profile.role) } : null 
     };
   } catch (err) {
     console.error("Error en getUserAndProfile:", err);
@@ -79,6 +85,6 @@ export async function getUserAndProfile(event: HandlerEvent) {
 }
 
 export function isPrivilegedRole(role: any) {
-  const r = String(role || "").toLowerCase();
+  const r = normRole(role);
   return r === "admin" || r === "superadmin";
 }
