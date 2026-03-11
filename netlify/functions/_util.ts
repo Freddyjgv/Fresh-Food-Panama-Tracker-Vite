@@ -17,10 +17,10 @@ export const sbAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
-// 2. Utilidades de Respuesta
+// 2. Utilidades de Respuesta (incluye cache-control para CORS desde localhost)
 export const commonHeaders = {
   "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*", // En producción, cámbialo por tu dominio específico
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, cache-control",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 };
@@ -58,11 +58,9 @@ export async function getUserAndProfile(event: HandlerEvent) {
   if (!token) return { token: null, user: null, profile: null };
 
   try {
-    // Validar token con Supabase Auth
     const { data: authData, error: authError } = await sbAdmin.auth.getUser(token);
     if (authError || !authData?.user) return { token, user: null, profile: null };
 
-    // Obtener perfil asociado
     const { data: profile, error: pErr } = await sbAdmin
       .from("profiles")
       .select("user_id, role, client_id")
