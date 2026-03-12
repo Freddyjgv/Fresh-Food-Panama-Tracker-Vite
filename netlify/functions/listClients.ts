@@ -1,34 +1,13 @@
-import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
-import { optionsResponse } from './_util';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const corsHeaders = {
-  "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, Cache-Control, X-Requested-With, Accept",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Max-Age": "86400",
-};
+import type { Handler } from "@netlify/functions";
+import { sbAdmin, json, text, optionsResponse } from "./_util";
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return optionsResponse();
-
-  if (event.httpMethod !== 'GET') {
-    return { 
-      statusCode: 405, 
-      headers: corsHeaders, 
-      body: 'Method Not Allowed' 
-    };
-  }
+  if (event.httpMethod !== "GET") return text(405, "Method not allowed");
 
   try {
-    const { data, error } = await supabase
-      .from('clients')
+    const { data, error } = await sbAdmin
+      .from("clients")
       .select(`
         id, 
         name, 
@@ -41,22 +20,13 @@ export const handler: Handler = async (event) => {
         billing_address,
         created_at
       `)
-      .order('created_at', { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({ items: data || [] }),
-    };
-  } catch (error: any) {
-    // CAMBIO 5: Siempre devolver corsHeaders incluso en errores
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ message: error.message }),
-    };
+    return json(200, { items: data || [] });
+  } catch (err: any) {
+    console.error("Error en listClients:", err?.message);
+    return text(500, err?.message || "Server error");
   }
-  
 };
