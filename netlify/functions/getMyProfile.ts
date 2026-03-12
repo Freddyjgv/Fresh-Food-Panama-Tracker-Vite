@@ -1,4 +1,3 @@
-// netlify/functions/getMyProfile.ts
 import type { Handler } from "@netlify/functions";
 import { getUserAndProfile, json, text, optionsResponse } from "./_util";
 
@@ -8,10 +7,8 @@ export const handler: Handler = async (event) => {
   try {
     const { user, profile } = await getUserAndProfile(event);
 
-    // 1. Verificación estricta para TypeScript
     if (!user) return text(401, "Unauthorized: No session found");
     
-    // 2. Si el usuario existe pero el perfil no (error común en registros incompletos)
     if (!profile) {
       return json(200, {
         email: user.email,
@@ -22,7 +19,6 @@ export const handler: Handler = async (event) => {
       });
     }
 
-    // 3. Respuesta final con valores seguros
     return json(200, {
       email: user.email ?? "no-email",
       role: profile.role ?? "user",

@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { HandlerEvent } from "@netlify/functions";
 
-// 1. Inicialización Singleton con Service Role (Uso interno de funciones)
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
@@ -16,7 +15,6 @@ export const sbAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
-// 2. Encabezados Globales (Soluciona CORS desde localhost y otros orígenes)
 export const commonHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
@@ -25,14 +23,12 @@ export const commonHeaders = {
   "Access-Control-Max-Age": "86400",
 };
 
-/** Respuesta estándar para preflight OPTIONS (200 + body vacío, funciona en Safari y resto de navegadores) */
 export const optionsResponse = () => ({
   statusCode: 200,
   headers: commonHeaders,
   body: "",
 });
 
-// 3. Funciones de Respuesta Estándar
 export function json(statusCode: number, body: any) {
   return {
     statusCode,
@@ -49,16 +45,21 @@ export function text(statusCode: number, message: string) {
   };
 }
 
-// 4. Lógica de Autenticación y Perfil
 export function getBearerToken(event: HandlerEvent) {
   const h = event.headers?.authorization || event.headers?.Authorization;
   if (h) {
     const m = /^Bearer\s+(.+)$/i.exec(String(h));
     if (m?.[1]) return m[1];
   }
-  // Fallback: token en query (para PDFs que se abren en nueva pestaña)
   const qs = (event as any).queryStringParameters;
   if (qs?.token) return String(qs.token).trim() || null;
+  try {
+    const body = (event as any).body;
+    if (body) {
+      const parsed = typeof body === "string" ? JSON.parse(body) : body;
+      if (parsed?.token) return String(parsed.token).trim() || null;
+    }
+  } catch (_) {}
   return null;
 }
 
@@ -71,11 +72,9 @@ export async function getUserAndProfile(event: HandlerEvent) {
   if (!token) return { token: null, user: null, profile: null };
 
   try {
-    // Verificamos el token con Supabase Auth
     const { data: authData, error: authError } = await sbAdmin.auth.getUser(token);
     if (authError || !authData?.user) return { token, user: null, profile: null };
 
-    // Buscamos el perfil asociado en la tabla pública de perfiles
     const { data: profile, error: pErr } = await sbAdmin
       .from("profiles")
       .select("user_id, role, client_id")

@@ -1,11 +1,9 @@
-// netlify/functions/renderQuotePdf.ts
 import type { Handler } from "@netlify/functions";
 import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import * as fs from "fs";
 import path from "path";
 import { getUserAndProfile, text, sbAdmin, json, isPrivilegedRole, optionsResponse } from "./_util";
 
-// --- HELPERS DE FORMATO ---
 function safeFileName(name: string) {
   return String(name || "cotizacion")
     .normalize("NFKD")
@@ -28,7 +26,6 @@ function t(lang: "es" | "en", es: string, en: string) {
   return lang === "en" ? en : es;
 }
 
-// --- GESTIÓN DE PDF (BUFFERS) ---
 function docToBuffer(doc: any) {
   return new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -54,7 +51,6 @@ function readIfExists(absPath: string): Buffer | null {
   }
 }
 
-// --- DIBUJO DE ELEMENTOS ---
 function drawWatermark(doc: any, wmBuf: Buffer | null) {
   if (!wmBuf) return;
   const w = 420;
@@ -144,7 +140,6 @@ function drawItemsTable(doc: any, opts: any) {
   doc.font("Inter-Bold").fontSize(12).text(`${t(lang, "Total", "Total")}: ${money(total, currency)}`, { align: "right" });
 }
 
-// --- HANDLER PRINCIPAL ---
 export const handler: Handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return optionsResponse();
 
@@ -182,7 +177,6 @@ export const handler: Handler = async (event) => {
 
     if (error || !data) return text(404, "Quote not found");
 
-    // Diagnóstico de Rutas para Netlify
     const brandDir = path.join(process.cwd(), "public", "brand");
 const logoBuf = readIfExists(path.join(brandDir, "freshfood_logo.png"));
 const wmBuf = readIfExists(path.join(brandDir, "FFPWM.png"));

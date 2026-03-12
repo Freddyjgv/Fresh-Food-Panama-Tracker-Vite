@@ -1,4 +1,3 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
     const netlifyUrl = process.env.NEXT_PUBLIC_NETLIFY_URL;

@@ -65,7 +65,6 @@ export default function AdminQuoteDetailPage() {
   const handleDownloadPdf = async () => {
   if (!id) return;
 
-  // 1. Refrescamos la sesión y extraemos el token (evita token expirado en local)
   await supabase.auth.refreshSession();
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
@@ -75,19 +74,24 @@ export default function AdminQuoteDetailPage() {
     return;
   }
 
-  // 2. En local usamos URL directa a Netlify (evita problemas de proxy).
-  //    En prod usamos /api/renderQuotePdf (mismo origen).
-  const isLocal = typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host);
-  const base = isLocal
-    ? (process.env.NEXT_PUBLIC_NETLIFY_URL || "https://fresh-food-panama-tracker.netlify.app")
-    : "";
-  const url = `${base}/.netlify/functions/renderQuotePdf?id=${id}&token=${encodeURIComponent(token)}&lang=es&variant=2`;
-  
-  // 3. Abrimos la pestaña
-  window.open(url, '_blank');
+  const url = `/api/renderQuotePdf?id=${id}&token=${encodeURIComponent(token)}&lang=es&variant=2`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const msg = await res.text();
+      alert(`Error ${res.status}: ${msg || "No se pudo generar el PDF"}`);
+      return;
+    }
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank");
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch (e: any) {
+    alert("Error de conexión: " + (e?.message || "Intenta de nuevo"));
+  }
 };
 
-  // ESTADOS DE LA COTIZACIÓN
   const [status, setStatus] = useState("draft");
   const [boxes, setBoxes] = useState(0);
   const [weightKg, setWeightKg] = useState(0);

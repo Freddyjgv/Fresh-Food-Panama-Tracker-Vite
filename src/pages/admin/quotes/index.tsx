@@ -1,4 +1,3 @@
-// src/pages/admin/quotes/index.tsx
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -13,7 +12,6 @@ import { requireAdminOrRedirect } from "../../../lib/requireAdmin";
 import { AdminLayout } from "../../../components/AdminLayout";
 import { CompactRow } from "../../../components/CompactRow";
 
-// --- TYPES ---
 type QuoteRow = {
   id: string;
   quote_number?: string;
@@ -32,7 +30,6 @@ type ApiResponse = {
   total: number;
 };
 
-// --- HELPERS ---
 function fmtDate(iso: string) {
   try {
     return new Date(iso).toLocaleDateString("es-PA", { day: '2-digit', month: 'short' });
@@ -62,7 +59,7 @@ function StatusPill({ v }: { v: string }) {
       {labels[s] || s}
     </span>
   );
-} // <--- LLAVE DE CIERRE CORRECTA
+}
 
 const getFlag = (dest: string) => {
   if (!dest) return "📍";
@@ -154,7 +151,6 @@ export default function AdminQuotesIndex() {
           <AlertCircle size={18} /> {error}
         </div>
       )}
-      {/* 1. HEADER: 4 GRIDS DE RESUMEN (ESTILO FINO) */}
       <div className="statsGrid">
   <div className="statCard action" onClick={() => router.push('/admin/quotes/new')}>
     <div className="iconBox green"><PlusCircle size={18} strokeWidth={1.5} /></div>
@@ -166,7 +162,6 @@ export default function AdminQuotesIndex() {
     <div className="iconBox blue"><TrendingUp size={18} strokeWidth={1.5} /></div>
     <div className="statInfo">
       <span className="statLabel">PIPELINE TOTAL</span>
-      {/* Usamos stats.pipeline que sí existe */}
       <span className="statValue">USD {stats.pipeline?.toLocaleString() || '0'}</span>
     </div>
   </div>
@@ -174,7 +169,6 @@ export default function AdminQuotesIndex() {
     <div className="iconBox orange"><FileText size={18} strokeWidth={1.5} /></div>
     <div className="statInfo">
       <span className="statLabel">TOTAL</span>
-      {/* Cambié .drafts por .countTotal que es lo que tienes en tu tipo */}
       <span className="statValue">{stats.countTotal || '0'}</span>
     </div>
   </div>
@@ -182,14 +176,12 @@ export default function AdminQuotesIndex() {
     <div className="iconBox slate"><CheckCircle size={18} strokeWidth={1.5} /></div>
     <div className="statInfo">
       <span className="statLabel">APROBADAS</span>
-      {/* Cambié .approved por .countApproved según tu error de TypeScript */}
       <span className="statValue">{stats.countApproved || '0'}</span>
     </div>
   </div>
 </div>
 
       <div className="mainCard">
-        {/* 2. TOOLBAR MINIMALISTA */}
         <div className="toolbar">
           <div className="searchModern">
             <Search size={16} className="searchIcon" strokeWidth={1.5} />
@@ -200,7 +192,6 @@ export default function AdminQuotesIndex() {
           </button>
         </div>
 
-          {/* 3. LISTADO: 4 COLUMNAS (GRID MODERNO) */}
         <div className="listContainer">
           {loading ? (
             <div className="loadingState">Cargando...</div>
@@ -209,7 +200,6 @@ export default function AdminQuotesIndex() {
               <div key={r.id} className="rowWrapper" onClick={() => router.push(`/admin/quotes/${r.id}`)}>
                 <div className="rowGrid">
                   
-                  {/* COL 1: IDENTIDAD */}
                   <div className="colIdent">
                     <div className="badgeLine">
                       <span className="idBadge">{r.quote_number || r.code || 'S/N'}</span>
@@ -221,7 +211,6 @@ export default function AdminQuotesIndex() {
                     <span className="clientName">{r.client_name || 'Sin nombre'}</span>
                   </div>
 
-                  {/* COL 2: LOGÍSTICA */}
                   <div className="colLogis">
                     <div className="routeLine">
                       <span className="city">PTY</span>
@@ -230,14 +219,12 @@ export default function AdminQuotesIndex() {
                     </div>
                   </div>
 
-                  {/* COL 3: MONTO */}
                   <div className="colMonto">
                     <span className="priceText">
                       USD {(r.total_amount || r.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
                   </div>
 
-                  {/* COL 4: STATUS */}
                   <div className="colStatus">
                     <StatusPill v={r.status} />
                     <ChevronRight size={16} className="chevron" strokeWidth={1.5} />
@@ -251,7 +238,6 @@ export default function AdminQuotesIndex() {
       </div>
 
       <style jsx>{`
-        /* --- FUENTES Y LAYOUT --- */
         .errorBanner { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
         .statsGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
         .statCard { background: white; padding: 16px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px; }
@@ -276,13 +262,11 @@ export default function AdminQuotesIndex() {
   display: flex;
   align-items: center;
   width: 380px;
-  /* Margen externo por si quieres separar TODO el buscador de otros elementos */
   margin-left: 10px; 
 }
 
 .searchIcon { 
   position: absolute; 
-  /* Separamos la lupa del borde izquierdo del rectángulo gris */
   left: 14px; 
   color: #94a3b8; 
   z-index: 10;
@@ -290,8 +274,6 @@ export default function AdminQuotesIndex() {
 
 .searchModern input { 
   width: 100%; 
-  /* Bajamos de 60px a 40px: el texto ahora empieza a una distancia 
-     estándar de la lupa, pero la lupa tiene aire a su izquierda */
   padding: 10px 16px 10px 40px; 
   border-radius: 12px; 
   border: 1px solid #e2e8f0; 
@@ -301,7 +283,6 @@ export default function AdminQuotesIndex() {
 }
         .btnOutline { background: white; border: 1px solid #f1f5f9; padding: 8px 14px; border-radius: 10px; font-size: 12px; font-weight: 500; color: #64748b; display: flex; align-items: center; gap: 8px; cursor: pointer; }
 
-        /* --- GRID DE 4 COLUMNAS --- */
         .listContainer { padding: 8px 0; }
         .rowWrapper { padding: 0 24px; cursor: pointer; transition: 0.1s; border-bottom: 1px solid #f8fafc; }
         .rowWrapper:hover { background: #fbfcfe; }
