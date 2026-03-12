@@ -51,10 +51,15 @@ export function text(statusCode: number, message: string) {
 
 // 4. Lógica de Autenticación y Perfil
 export function getBearerToken(event: HandlerEvent) {
-  const h = event.headers.authorization || event.headers.Authorization;
-  if (!h) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(String(h));
-  return m?.[1] ?? null;
+  const h = event.headers?.authorization || event.headers?.Authorization;
+  if (h) {
+    const m = /^Bearer\s+(.+)$/i.exec(String(h));
+    if (m?.[1]) return m[1];
+  }
+  // Fallback: token en query (para PDFs que se abren en nueva pestaña)
+  const qs = (event as any).queryStringParameters;
+  if (qs?.token) return String(qs.token).trim() || null;
+  return null;
 }
 
 export function normRole(role: any) {
