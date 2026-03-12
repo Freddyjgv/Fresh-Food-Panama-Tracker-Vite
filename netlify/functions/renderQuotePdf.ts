@@ -3,7 +3,7 @@ import type { Handler } from "@netlify/functions";
 import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import * as fs from "fs";
 import path from "path";
-import { getUserAndProfile, text, sbAdmin, json, isPrivilegedRole } from "./_util";
+import { getUserAndProfile, text, sbAdmin, json, isPrivilegedRole, optionsResponse } from "./_util";
 
 // --- HELPERS DE FORMATO ---
 function safeFileName(name: string) {
@@ -146,17 +146,28 @@ function drawItemsTable(doc: any, opts: any) {
 
 // --- HANDLER PRINCIPAL ---
 export const handler: Handler = async (event) => {
+  if (event.httpMethod === "OPTIONS") return optionsResponse();
+
   try {
-    // --- PARCHE DE IDENTIDAD PARA PESTAÑAS NUEVAS ---
-    // Si el token viene en la URL, lo movemos al header para que los utils lo reconozcan
     const tokenFromUrl = event.queryStringParameters?.token;
+    const tokenFromHeader = event.headers?.authorization || event.headers?.Authorization;
     if (tokenFromUrl) {
-      event.headers.authorization = `Bearer ${tokenFromUrl}`;
+      event.headers = event.headers || {};
+      (event.headers as any).authorization = `Bearer ${tokenFromUrl}`;
     }
-    // ------------------------------------------------
 
     const { user, profile } = await getUserAndProfile(event);
-    if (!user || !profile || !isPrivilegedRole(profile.role || "")) return text(401, "Unauthorized");
+    if (!user || !profile) {
+      console.error("[renderQuotePdf] Auth failed:", {
+        hasToken: !!(tokenFromUrl || tokenFromHeader),
+        tokenLen: tokenFromUrl?.length || tokenFromHeader?.length || 0,
+      });
+      return text(401, "Unauthorized");
+    }
+    if (!isPrivilegedRole(profile.role || "")) {
+      console.error("[renderQuotePdf] Role rejected:", profile.role);
+      return text(403, "Forbidden");
+    }
 
     const id = String(event.queryStringParameters?.id || "").trim();
     const variant = (event.queryStringParameters?.variant || "2") as "1" | "2";

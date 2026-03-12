@@ -65,18 +65,23 @@ export default function AdminQuoteDetailPage() {
   const handleDownloadPdf = async () => {
   if (!id) return;
 
-  // 1. Extraemos la sesión activa de Supabase
+  // 1. Refrescamos la sesión y extraemos el token (evita token expirado en local)
+  await supabase.auth.refreshSession();
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
 
   if (!token) {
-    alert(" Tu sesión ha expirado. Por favor, recarga la página o inicia sesión de nuevo.");
+    alert("Tu sesión ha expirado. Por favor, recarga la página o inicia sesión de nuevo.");
     return;
   }
 
-  // 2. Construimos la URL pasando el TOKEN como parámetro
-  // Esto permite que la pestaña nueva se identifique ante Netlify
-  const url = `${getApiBase()}/.netlify/functions/renderQuotePdf?id=${id}&token=${token}&lang=es&variant=2`;
+  // 2. En local usamos URL directa a Netlify (evita problemas de proxy).
+  //    En prod usamos /api/renderQuotePdf (mismo origen).
+  const isLocal = typeof window !== "undefined" && /localhost|127\.0\.0\.1/.test(window.location.host);
+  const base = isLocal
+    ? (process.env.NEXT_PUBLIC_NETLIFY_URL || "https://fresh-food-panama-tracker.netlify.app")
+    : "";
+  const url = `${base}/.netlify/functions/renderQuotePdf?id=${id}&token=${encodeURIComponent(token)}&lang=es&variant=2`;
   
   // 3. Abrimos la pestaña
   window.open(url, '_blank');
