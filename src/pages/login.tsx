@@ -1,20 +1,34 @@
 import { useEffect, useState } from "react";
-import Image from "next/image";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { getApiBase } from "../lib/apiBase";
-import { LogIn, ShieldCheck, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { 
+  LogIn as LogInIcon, 
+  ShieldCheck as ShieldIcon, 
+  CheckCircle2 as CheckIcon, 
+  Eye as EyeIcon, 
+  EyeOff as EyeOffIcon,
+  ArrowLeft,
+  Send,
+  Mail
+} from "lucide-react";
+import { notify } from "@/components/AdminLayout"; // Asegúrate de que esta ruta sea correcta
+
+import "./login.css";
 
 type Role = "client" | "admin" | "superadmin" | null;
+type ViewMode = "login" | "forgot";
 
 export default function LoginPage() {
+  const navigate = useNavigate();
+  const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [checking, setChecking] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const FF_DARK_GREEN = "#234d23";
+  const [emailSent, setEmailSent] = useState(false);
 
   async function routeByRole(): Promise<boolean> {
     const { data } = await supabase.auth.getSession();
@@ -34,9 +48,9 @@ export default function LoginPage() {
     const role = String(me.role || "").toLowerCase();
 
     if (role === "admin" || role === "superadmin") {
-      window.location.href = "/admin/shipments";
+      navigate("/admin/shipments");
     } else {
-      window.location.href = "/shipments";
+      navigate("/shipments");
     }
     return true;
   }
@@ -76,18 +90,34 @@ export default function LoginPage() {
     }
   }
 
+  // Nueva función para recuperar clave
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return setError("Por favor ingresa tu correo electrónico.");
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setEmailSent(true);
+    } catch (err: any) {
+      setError(err.message || "Error al enviar el correo");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (checking) {
     return (
       <div className="ff-login-viewport">
-        <div className="ff-loading-box">
+        <div className="text-center">
           <div className="ff-spinner"></div>
           <p>Sincronizando con Fresh Connect...</p>
         </div>
-        <style jsx>{`
-          .ff-login-viewport { min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Poppins', sans-serif; }
-          .ff-spinner { width: 30px; height: 30px; border: 3px solid #f1f5f9; border-top-color: ${FF_DARK_GREEN}; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
-          @keyframes spin { to { transform: rotate(360deg); } }
-        `}</style>
       </div>
     );
   }
@@ -96,207 +126,156 @@ export default function LoginPage() {
     <div className="ff-login-viewport">
       <div className="ff-login-container">
         
-        {/* LADO IZQUIERDO: CAMPO DE PIÑAS */}
         <div className="ff-login-visual">
           <div className="ff-visual-overlay"></div>
           <div className="ff-visual-content">
             <h2>Logística de exportación que conecta a Panamá con el mundo.</h2>
             <div className="ff-features">
-              <div className="ff-f-item"><CheckCircle2 size={16} /> <span>Trazabilidad Fresh Connect</span></div>
-              <div className="ff-f-item"><CheckCircle2 size={16} /> <span>Gestión de Documentos</span></div>
+              <div className="ff-f-item"><CheckIcon size={16} /> <span>Trazabilidad Fresh Connect</span></div>
+              <div className="ff-f-item"><CheckIcon size={16} /> <span>Gestión de Documentos</span></div>
             </div>
           </div>
         </div>
 
-        {/* LADO DERECHO: FORMULARIO CON LOGO CENTRADO */}
         <div className="ff-login-form-side">
           <div className="ff-form-header">
-            <Image 
-              src="/brand/freshfood_logo.png" 
-              alt="FreshFood Panama" 
-              width={220}
-              height={65}
-              className="ff-form-logo"
-              style={{ width: "auto", height: 65, objectFit: "contain" }}
-            />
-            <h1>Portal de Clientes</h1>
-            <p>Ingresa tus credenciales para continuar.</p>
+            <img src="/brand/freshfood_logo.png" alt="FreshFood Panama" className="ff-form-logo" />
+            
+            {view === "login" ? (
+              <>
+                <h1>Portal de Clientes</h1>
+                <p>Ingresa tus credenciales para continuar.</p>
+              </>
+            ) : (
+              <>
+                <h1>Recuperar Clave</h1>
+                <p>Te enviaremos un correo con las instrucciones.</p>
+              </>
+            )}
           </div>
 
-          <form onSubmit={onSubmit} className="ff-login-form">
-            <div className="ff-input-group">
-              <label>Correo Electrónico</label>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                placeholder="ejemplo@freshfoodpanama.com"
-                required
-              />
-            </div>
-
-            <div className="ff-input-group">
-              <label>Contraseña</label>
-              <div className="ff-password-wrap">
+          {view === "login" ? (
+            /* FORMULARIO DE LOGIN */
+            <form onSubmit={onSubmit} className="ff-login-form">
+              <div className="ff-input-group">
+                <label>Correo Electrónico</label>
                 <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  placeholder="ejemplo@freshfoodpanama.com"
                   required
                 />
-                <button
-                  type="button"
-                  className="ff-password-toggle"
-                  onClick={() => setShowPassword((v) => !v)}
-                  title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
               </div>
+
+              <div className="ff-input-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label>Contraseña</label>
+                  <button 
+                    type="button" 
+                    className="ff-forgot-link" 
+                    onClick={() => { setView("forgot"); setError(null); }}
+                  >
+                    ¿Olvidaste tu clave?
+                  </button>
+                </div>
+                <div className="ff-password-wrap">
+                  <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                  />
+                  <button type="button" className="ff-password-toggle" onClick={() => setShowPassword((v) => !v)}>
+                    {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {error && <div className="ff-error-msg">{error}</div>}
+
+              <button disabled={loading} className="ff-submit-btn">
+                {loading ? "Ingresando..." : "Acceder al Panel"}
+                {!loading && <LogInIcon size={18} />}
+              </button>
+            </form>
+          ) : (
+            /* FORMULARIO DE RECUPERACIÓN */
+            <div className="ff-forgot-container">
+              {!emailSent ? (
+                <form onSubmit={handleResetPassword} className="ff-login-form">
+                  <div className="ff-input-group">
+                    <label>Correo Electrónico</label>
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      type="email"
+                      placeholder="Tu correo registrado"
+                      required
+                    />
+                  </div>
+                  
+                  {error && <div className="ff-error-msg">{error}</div>}
+
+                  <button disabled={loading} className="ff-submit-btn">
+                    {loading ? "Enviando..." : "Enviar Instrucciones"}
+                    {!loading && <Send size={18} />}
+                  </button>
+                  
+                  <button 
+                    type="button" 
+                    className="ff-back-btn" 
+                    onClick={() => { setView("login"); setError(null); }}
+                  >
+                    <ArrowLeft size={16} /> Volver al inicio
+                  </button>
+                </form>
+              ) : (
+                <div className="ff-success-announcement">
+                  <div className="ff-icon-circle">
+                    <CheckIcon size={32} />
+                  </div>
+                  <h3>¡Correo enviado con éxito!</h3>
+                  <p>Hemos enviado instrucciones a <strong>{email}</strong> para restablecer tu contraseña. Revisa tu bandeja de entrada o spam.</p>
+                  <button className="ff-submit-btn" onClick={() => { setView("login"); setEmailSent(false); }}>
+                    Entendido, volver
+                  </button>
+                </div>
+              )}
             </div>
-
-            {error && <div className="ff-error-msg">{error}</div>}
-
-            <button disabled={loading} className="ff-submit-btn">
-              {loading ? "Ingresando..." : "Acceder al Panel"}
-              {!loading && <LogIn size={18} />}
-            </button>
-          </form>
+          )}
 
           <div className="ff-form-footer">
-            <ShieldCheck size={14} />
+            <ShieldIcon size={14} />
             <span>Acceso Encriptado SSL</span>
           </div>
         </div>
       </div>
 
-      <style jsx>{`
-        /* Importar Poppins si no está en tu layout global */
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700;800;900&display=swap');
-
-        .ff-login-viewport {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f4f7f5;
-          padding: 24px;
-          font-family: 'Poppins', sans-serif;
+      <style>{`
+        .ff-forgot-link {
+          background: none; border: none; color: #10b981; font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; margin-bottom: 4px;
         }
-
-        .ff-login-container {
-          display: flex;
-          width: 100%;
-          max-width: 1050px;
-          min-height: 640px;
-          background: white;
-          border-radius: 40px;
-          overflow: hidden;
-          box-shadow: 0 40px 100px -20px rgba(35, 77, 35, 0.15);
+        .ff-forgot-link:hover { text-decoration: underline; }
+        
+        .ff-back-btn {
+          margin-top: 15px; background: none; border: none; color: #94a3b8; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
         }
+        .ff-back-btn:hover { color: #0f172a; }
 
-        .ff-login-visual {
-          flex: 1.2;
-          background-image: url('/brand/pineapplefield.jpg'); 
-          background-size: cover;
-          background-position: center;
-          position: relative;
-          display: flex;
-          padding: 50px;
-          align-items: flex-end;
+        .ff-success-announcement {
+          background: #f0fdf4; border: 1.5px solid #dcfce7; border-radius: 24px; padding: 30px; text-align: center; animation: modalSpring 0.4s ease;
         }
-
-        .ff-visual-overlay {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(35, 77, 35, 0.8) 0%, rgba(0,0,0,0.3) 100%);
+        .ff-icon-circle {
+          width: 60px; height: 60px; background: #10b981; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
         }
-
-        .ff-visual-content { position: relative; z-index: 2; color: white; }
-        .ff-visual-content h2 { font-size: 26px; font-weight: 300; line-height: 1.3; margin-bottom: 24px; }
-        .ff-features { display: grid; gap: 12px; }
-        .ff-f-item { display: flex; align-items: center; gap: 10px; font-size: 14px; opacity: 0.9; }
-
-        .ff-login-form-side {
-          flex: 1;
-          padding: 60px;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center; /* Centra el contenido del formulario */
-          text-align: center;
-        }
-
-        .ff-form-logo {
-          height: 65px;
-          width: auto;
-          margin-bottom: 20px;
-          object-fit: contain;
-        }
-
-        .ff-form-header { width: 100%; }
-        .ff-form-header h1 { font-size: 26px; font-weight: 800; color: ${FF_DARK_GREEN}; margin-bottom: 4px; letter-spacing: -0.03em; }
-        .ff-form-header p { color: #64748b; font-size: 13px; margin-bottom: 35px; }
-
-        .ff-login-form { width: 100%; text-align: left; }
-        .ff-input-group { margin-bottom: 20px; }
-        .ff-input-group label { display: block; font-size: 11px; font-weight: 700; color: ${FF_DARK_GREEN}; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.05em; }
-        .ff-password-wrap { position: relative; display: flex; align-items: center; }
-        .ff-password-toggle {
-          position: absolute;
-          right: 12px;
-          background: none;
-          border: none;
-          padding: 4px;
-          cursor: pointer;
-          color: #94a3b8;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 6px;
-        }
-        .ff-password-toggle:hover { color: ${FF_DARK_GREEN}; }
-        .ff-input-group input {
-          width: 100%;
-          padding: 14px 18px;
-          border-radius: 14px;
-          border: 1.5px solid #edf2f7;
-          background: #f8fafc;
-          font-family: 'Poppins', sans-serif;
-          font-size: 14px;
-          transition: 0.2s;
-        }
-        .ff-password-wrap input { padding-right: 48px; }
-        .ff-input-group input:focus { border-color: ${FF_DARK_GREEN}; background: white; outline: none; box-shadow: 0 0 0 4px rgba(35, 77, 35, 0.06); }
-
-        .ff-error-msg { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 12px; border-radius: 10px; font-size: 12px; margin-bottom: 20px; font-weight: 600; width: 100%; }
-
-        .ff-submit-btn {
-          width: 100%;
-          padding: 16px;
-          background: ${FF_DARK_GREEN};
-          color: white;
-          border: none;
-          border-radius: 14px;
-          font-weight: 700;
-          font-size: 15px;
-          font-family: 'Poppins', sans-serif;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 12px;
-          cursor: pointer;
-          transition: 0.2s;
-        }
-        .ff-submit-btn:hover { background: #1a3a1a; transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(35, 77, 35, 0.2); }
-
-        .ff-form-footer { margin-top: 30px; display: flex; align-items: center; gap: 8px; color: #a0aec0; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-
-        @media (max-width: 900px) {
-          .ff-login-visual { display: none; }
-          .ff-login-form-side { padding: 40px; }
+        .ff-success-announcement h3 { font-weight: 900; color: #065f46; margin: 0 0 10px; }
+        .ff-success-announcement p { font-size: 14px; color: #065f46; line-height: 1.5; margin-bottom: 20px; }
+        
+        @keyframes modalSpring {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
         }
       `}</style>
     </div>

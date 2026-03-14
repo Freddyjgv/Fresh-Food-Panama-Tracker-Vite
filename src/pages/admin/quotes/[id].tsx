@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/router";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom"; 
 import { 
   Save, FileText, Loader2, Plane, Ship, 
   Thermometer, Droplets, Calculator, MapPin, Shield, ArrowRight, Package,
-  Maximize // Icono sugerido para Calibre
+  Maximize 
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { getApiBase } from "../../../lib/apiBase";
@@ -27,33 +27,19 @@ const statusBadgeClass = (status: string | undefined) => {
 
 const labelStatus = (status: string | undefined) => {
   const labels: Record<string, string> = {
-    draft: 'Borrador',
-    sent: 'Enviada',
-    approved: 'Aprobada',
-    won: 'Aprobada',
-    rejected: 'Rechazada',
-    lost: 'Rechazada',
-    expired: 'Vencida',
-    archived: 'Archivada'
+    draft: 'Borrador', sent: 'Enviada', approved: 'Aprobada',
+    won: 'Aprobada', rejected: 'Rechazada', lost: 'Rechazada',
+    expired: 'Vencida', archived: 'Archivada'
   };
   return labels[status?.toLowerCase() || 'draft'] || 'Borrador';
 };
 
-// --- INTERFACES ---
-interface CostLine {
-  base: number;
-  unitSale: number;
-  label: string;
-  tip: string;
-}
-
-interface CostState {
-  [key: string]: CostLine;
-}
+interface CostLine { base: number; unitSale: number; label: string; tip: string; }
+interface CostState { [key: string]: CostLine; }
 
 export default function AdminQuoteDetailPage() {
-  const router = useRouter();
-  const { id } = router.query;
+  const { id } = useParams(); 
+  const navigate = useNavigate();
 
   const [authOk, setAuthOk] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -74,7 +60,7 @@ export default function AdminQuoteDetailPage() {
   const [variety, setVariety] = useState("");
   const [color, setColor] = useState("");
   const [brix, setBrix] = useState("");
-  const [caliber, setCaliber] = useState(""); // 1. NUEVO ESTADO PARA CALIBRE
+  const [caliber, setCaliber] = useState(""); 
 
   const [costs, setCosts] = useState<CostState>({
     fruta: { base: 13.30, unitSale: 0, label: "Fruta (Base Cajas)", tip: "Precio de compra por caja." },
@@ -96,9 +82,9 @@ export default function AdminQuoteDetailPage() {
     };
   }, [data]);
 
-  const handleProductChange = (id: string) => {
-    setProductId(id);
-    const selectedProd = products.find(p => p.id === id);
+  const handleProductChange = (val: string) => {
+    setProductId(val);
+    const selectedProd = products.find(p => p.id === val);
     if (selectedProd && selectedProd.variety) {
       const vList = Array.isArray(selectedProd.variety) ? selectedProd.variety : [selectedProd.variety];
       setVarieties(vList);
@@ -132,55 +118,56 @@ export default function AdminQuoteDetailPage() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (authOk && id) {
-      (async () => {
-        setLoading(true);
-        const [qRes, pRes] = await Promise.all([
-          supabase.from("quotes").select(`*, clients (*)`).eq("id", id).single(),
-          supabase.from("products").select("*")
-        ]);
+  const loadData = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    const [qRes, pRes] = await Promise.all([
+      supabase.from("quotes").select(`*, clients (*)`).eq("id", id).single(),
+      supabase.from("products").select("*")
+    ]);
 
-        if (pRes.data) setProducts(pRes.data);
-        if (qRes.data) {
-          const q = qRes.data;
-          setData(q);
-          setStatus(q.status || "draft");
-          setBoxes(q.boxes || 0);
-          setWeightKg(q.weight_kg || 0);
-          setMode(q.mode || "AIR");
-          setPlace(q.destination || "");
-          setProductId(q.product_id || "");
-          
-          const det = q.product_details || {};
-          setVariety(det.variety || "");
-          setColor(det.color || "");
-          setBrix(det.brix || "");
-          setCaliber(det.caliber || ""); // 2. CARGA DE CALIBRE DESDE DB
+    if (pRes.data) setProducts(pRes.data);
+    if (qRes.data) {
+      const q = qRes.data;
+      setData(q);
+      setStatus(q.status || "draft");
+      setBoxes(q.boxes || 0);
+      setWeightKg(q.weight_kg || 0);
+      setMode(q.mode || "AIR");
+      setPlace(q.destination || "");
+      setProductId(q.product_id || "");
+      
+      const det = q.product_details || {};
+      setVariety(det.variety || "");
+      setColor(det.color || "");
+      setBrix(det.brix || "");
+      setCaliber(det.caliber || "");
 
-          if (q.product_id) {
-            const prod = pRes.data?.find(p => p.id === q.product_id);
-            setVarieties(prod?.variety ? (Array.isArray(prod.variety) ? prod.variety : [prod.variety]) : []);
-          }
-          const c = q.costs || {};
-          setCosts({
-            fruta: { base: c.c_fruit || 0, unitSale: c.s_fruit || 0, label: "Fruta (Base Cajas)", tip: "Precio de compra." },
-            flete: { base: c.c_freight || 0, unitSale: c.s_freight || 0, label: "Flete Internacional", tip: "Costo por Kg." },
-            origen: { base: c.c_origin || 0, unitSale: c.s_origin || 0, label: "Gastos de Origen", tip: "Manejo local." },
-            aduana: { base: c.c_aduana || 0, unitSale: c.s_aduana || 0, label: "Gestión Aduanera", tip: "Corredor." },
-            inspeccion: { base: c.c_insp || 0, unitSale: c.s_insp || 0, label: "Inspecciones / Fiton", tip: "MIDA." },
-            itbms: { base: c.c_itbms || 0, unitSale: c.s_itbms || 0, label: "ITBMS / Tasas", tip: "Impuestos." },
-            handling: { base: c.c_handling || 0, unitSale: c.s_handling || 0, label: "Handling", tip: "Manejo carga." },
-            otros: { base: c.c_other || 0, unitSale: c.s_other || 0, label: "Otros Gastos", tip: "Extras." }
-          });
-          const m = q.totals?.meta || {};
-          setIncoterm(m.incoterm || "CIP");
-          setPallets(m.pallets || 0);
-        }
-        setLoading(false);
-      })();
+      if (q.product_id) {
+        const prod = pRes.data?.find(p => p.id === q.product_id);
+        setVarieties(prod?.variety ? (Array.isArray(prod.variety) ? prod.variety : [prod.variety]) : []);
+      }
+      const c = q.costs || {};
+      setCosts({
+        fruta: { base: c.c_fruit || 0, unitSale: c.s_fruit || 0, label: "Fruta (Base Cajas)", tip: "Precio de compra." },
+        flete: { base: c.c_freight || 0, unitSale: c.s_freight || 0, label: "Flete Internacional", tip: "Costo por Kg." },
+        origen: { base: c.c_origin || 0, unitSale: c.s_origin || 0, label: "Gastos de Origen", tip: "Manejo local." },
+        aduana: { base: c.c_aduana || 0, unitSale: c.s_aduana || 0, label: "Gestión Aduanera", tip: "Corredor." },
+        inspeccion: { base: c.c_insp || 0, unitSale: c.s_insp || 0, label: "Inspecciones / Fiton", tip: "MIDA." },
+        itbms: { base: c.c_itbms || 0, unitSale: c.s_itbms || 0, label: "ITBMS / Tasas", tip: "Impuestos." },
+        handling: { base: c.c_handling || 0, unitSale: c.s_handling || 0, label: "Handling", tip: "Manejo carga." },
+        otros: { base: c.c_other || 0, unitSale: c.s_other || 0, label: "Otros Gastos", tip: "Extras." }
+      });
+      const m = q.totals?.meta || {};
+      setIncoterm(m.incoterm || "CIP");
+      setPallets(m.pallets || 0);
     }
-  }, [authOk, id]);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (authOk && id) loadData();
+  }, [authOk, id, loadData]);
 
   const updateCostLine = (key: string, field: 'base' | 'unitSale', value: string) => {
     const numValue = value === "" ? 0 : parseFloat(value);
@@ -190,17 +177,11 @@ export default function AdminQuoteDetailPage() {
   async function handleSave() {
     if (!id) return;
     setBusy(true);
-
     try {
       const totalVentaCientifico = analysis.lines.reduce((acc, curr) => acc + curr.totalSaleRow, 0);
-
       const payload = {
-        total: totalVentaCientifico, 
-        status,
-        mode,
-        destination: place,
-        boxes: Number(boxes),
-        weight_kg: Number(weightKg),
+        total: totalVentaCientifico, status, mode, destination: place,
+        boxes: Number(boxes), weight_kg: Number(weightKg),
         costs: {
           c_fruit: Number(costs.fruta.base), s_fruit: Number(costs.fruta.unitSale),
           c_freight: Number(costs.flete.base), s_freight: Number(costs.flete.unitSale),
@@ -216,33 +197,38 @@ export default function AdminQuoteDetailPage() {
           items: analysis.lines.map(l => ({ name: l.label, total: l.unitSale })).filter(it => it.total > 0),
           meta: { incoterm, place, pallets: Number(pallets) }
         },
-        product_id: productId && productId !== "" ? productId : null,
-        product_details: { variety, color, brix, caliber } // 3. GUARDADO DE CALIBRE
+        product_id: productId || null,
+        product_details: { variety, color, brix, caliber }
       };
-
       const { error } = await supabase.from("quotes").update(payload).eq("id", id);
       if (error) throw error;
       setToast("¡Cotización guardada!");
       setTimeout(() => setToast(null), 3000);
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
       setToast("Error al guardar");
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
-  if (loading) return <AdminLayout title="Cargando..."><div className="p-10">Cargando...</div></AdminLayout>;
+  const handlePrintPdf = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setToast("Sesión expirada");
+      return;
+    }
+    const pdfUrl = `${getApiBase()}/.netlify/functions/renderQuotePdf?id=${id}&lang=es&variant=2&token=${session.access_token}&t=${Date.now()}`;
+    window.open(pdfUrl, '_blank');
+  };
+
+  if (loading) return <AdminLayout title="Cargando..."><div className="p-10 text-center"><Loader2 className="spin" /></div></AdminLayout>;
 
   return (
     <AdminLayout title={`Cotización: ${headerInfo.name}`}>
       <div className="ff-container">
         
-        {/* HERO HEADER */}
         <div className="hero">
           <div className="heroLeft">
             <div className="codeRow">
-              <div className="codeIcon"><FileText size={20} color="var(--ff-green-dark)" /></div>
+              <div className="codeIcon"><FileText size={20} color="#166534" /></div>
               <div style={{ minWidth: 0 }}>
                 <div className="heroLabel">Identificador Único</div>
                 <div className="code">{data?.quote_number || 'S/N'}</div>
@@ -259,13 +245,9 @@ export default function AdminQuoteDetailPage() {
                 <span className="kpi-val">USD {analysis.perBox.toFixed(2)}</span>
                 <span className="kpi-lab">PRECIO POR CAJA</span>
               </div>
-              <a 
-                href={`/api/renderQuotePdf?id=${id}&lang=es&variant=2&t=${Date.now()}`}
-                target="_blank" rel="noopener noreferrer"
-                className="pdf-link"
-              >
+              <button onClick={handlePrintPdf} className="pdf-link" style={{ cursor: 'pointer' }}>
                 <FileText size={18}/> PDF
-              </a>
+              </button>
               <button className="btn-save" onClick={handleSave} disabled={busy}>
                 {busy ? <Loader2 size={18} className="spin"/> : <Save size={18}/>}
                 {busy ? 'Guardando...' : 'Guardar'}
@@ -283,7 +265,6 @@ export default function AdminQuoteDetailPage() {
           </div>
         </div>
 
-        {/* CALIDAD - MODIFICADO CON CALIBRE */}
         <div className="ff-card strip">
           <div className="strip-label">CALIDAD</div>
           <div className="strip-grid">
@@ -301,19 +282,15 @@ export default function AdminQuoteDetailPage() {
                 {varieties.map((v, i) => (<option key={i} value={v}>{v}</option>))}
               </select>
             </div>
-
-            {/* --- NUEVO CAMPO CALIBRE --- */}
             <div className="f">
               <label><Maximize size={10}/> Calibre</label>
               <input placeholder="Ej: 6, 7, 8" value={caliber} onChange={e => setCaliber(e.target.value)} />
             </div>
-
             <div className="f"><label><Thermometer size={10}/> Color</label><input placeholder="2.75-3.25" value={color} onChange={e => setColor(e.target.value)} /></div>
             <div className="f"><label><Droplets size={10}/> Brix</label><input placeholder="≥13" value={brix} onChange={e => setBrix(e.target.value)} /></div>
           </div>
         </div>
 
-        {/* LOGÍSTICA */}
         <div className="ff-card strip blue">
           <div className="strip-label">LOGÍSTICA</div>
           <div className="strip-grid">
@@ -337,9 +314,8 @@ export default function AdminQuoteDetailPage() {
           </div>
         </div>
 
-        {/* TABLA COMERCIAL */}
         <div className="ff-card">
-          <div className="table-h"><Calculator size={18} color="#16a34a"/> <span>Análisis Comercial de la Oferta</span></div>
+          <div className="table-h"><Calculator size={18} color="#16a34a"/> <span>Análisis Comercial</span></div>
           <table className="a-table">
             <thead>
               <tr>
@@ -363,7 +339,7 @@ export default function AdminQuoteDetailPage() {
                     <input className="in s no-spin" type="number" step="any" value={costs[l.key].unitSale || ""} onChange={e => updateCostLine(l.key, 'unitSale', e.target.value)} />
                   </td>
                   <td align="right" style={{fontWeight: 700, paddingRight: '10px'}}>
-                    ${l.totalSaleRow.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
+                    ${l.totalSaleRow.toLocaleString(undefined, {minimumFractionDigits:2})}
                   </td>
                   <td align="center"><span className="m-badge">{l.margin}%</span></td>
                 </tr>
@@ -381,8 +357,8 @@ export default function AdminQuoteDetailPage() {
         {toast && <div className="toast">{toast}</div>}
       </div>
 
-      <style jsx>{`
-        .ff-container { padding: 30px; max-width: 1250px; margin: 0 auto; font-family: 'Inter', sans-serif; }
+      <style>{`
+        .ff-container { padding: 30px; max-width: 1250px; margin: 0 auto; font-family: sans-serif; }
         .ff-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .hero { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .heroLeft { display: flex; align-items: center; flex: 1; }
@@ -393,9 +369,12 @@ export default function AdminQuoteDetailPage() {
         .productLine { font-size: 13px; color: #64748b; margin-top: 2px; }
         .heroRight { display: flex; gap: 10px; align-items: center; }
         .head-actions { display: flex; gap: 20px; align-items: center; margin-right: 15px; border-right: 1px solid #e2e8f0; padding-right: 20px; }
-        .pdf-link { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 8px; font-weight: 700; display: flex; gap: 8px; align-items: center; text-decoration: none; }
+        .kpi-box { text-align: right; }
+        .kpi-val { display: block; font-size: 18px; font-weight: 900; color: #10b981; }
+        .kpi-lab { font-size: 9px; font-weight: 800; color: #94a3b8; }
+        .pdf-link { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 8px; font-weight: 700; display: flex; gap: 8px; align-items: center; text-decoration: none; border: 1px solid #e2e8f0; }
         .btn-save { background: #10b981; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; gap: 8px; align-items: center; }
-        .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+        .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid transparent; }
         .pill.green { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
         .pill.blue { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
         .pill.gray { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
@@ -404,27 +383,33 @@ export default function AdminQuoteDetailPage() {
         .strip.blue .strip-label { color: #3b82f6; }
         .strip-grid { display: flex; flex: 1; gap: 15px; }
         .f { display: flex; flex-direction: column; gap: 5px; flex: 1; }
-        .f label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
-        .f input, .f select, .toggle { height: 38px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0 10px; font-size: 13px; font-weight: 600; }
-        .toggle { display: flex; background: #f1f5f9; padding: 2px; }
-        .toggle button { flex: 1; border: none; background: none; cursor: pointer; color: #94a3b8; }
-        .toggle button.active { background: white; color: #3b82f6; border-radius: 4px; }
+        .f.small { flex: 0.4; }
+        .f label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; display: flex; align-items: center; gap: 4px; }
+        .f input, .f select, .toggle { height: 38px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0 10px; font-size: 13px; font-weight: 600; outline: none; }
+        .toggle { display: flex; background: #f1f5f9; padding: 2px; height: 38px; border-radius: 6px; }
+        .toggle button { flex: 1; border: none; background: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; justify-content: center; }
+        .toggle button.active { background: white; color: #3b82f6; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .table-h { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-weight: 800; text-transform: uppercase; font-size: 12px; }
         .a-table { width: 100%; border-collapse: collapse; }
-        .a-table th { font-size: 10px; color: #94a3b8; padding: 10px; border-bottom: 2px solid #f8fafc; }
+        .a-table th { font-size: 10px; color: #94a3b8; padding: 10px; border-bottom: 2px solid #f8fafc; text-align: left; }
         .a-table td { padding: 12px 10px; border-bottom: 1px solid #f8fafc; }
-        .in { width: 105px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; text-align: right; font-weight: 700; }
+        .c-box b { display: block; font-size: 13px; color: #1e293b; }
+        .c-box span { font-size: 10px; color: #94a3b8; }
+        .in { width: 100px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; text-align: right; font-weight: 700; }
         .in.s { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+        .m-badge { background: #f1f5f9; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; color: #475569; }
         .a-footer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #f1f5f9; }
         .stat { background: #f8fafc; padding: 15px; border-radius: 10px; font-size: 10px; color: #64748b; font-weight: 700; }
         .stat b { display: block; font-size: 18px; color: #1e293b; margin-top: 5px; }
+        .stat b.g { color: #10b981; }
+        .stat b.b { color: #3b82f6; }
         .stat.featured { background: #1e293b; color: #94a3b8; }
         .stat.featured b { color: white; }
-        .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 12px 25px; border-radius: 10px; z-index: 100; }
+        .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 12px 25px; border-radius: 10px; z-index: 100; box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
       `}</style>
     </AdminLayout>
   ); 
-} 
-
-export const getServerSideProps = () => ({ props: {} })
+}

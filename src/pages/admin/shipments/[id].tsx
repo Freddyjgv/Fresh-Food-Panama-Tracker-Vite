@@ -1,27 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/router";
-import { supabase } from "../../../lib/supabaseClient";
-import { getApiBase } from "../../../lib/apiBase";
-import { requireAdminOrRedirect } from "../../../lib/requireAdmin";
-import { AdminLayout } from "../../../components/AdminLayout";
-import { labelStatus } from "../../../lib/shipmentFlow";
-import { Timeline as ModernTimeline } from "../../../components/Timeline";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
+import { getApiBase } from "@/lib/apiBase";
+import { requireAdminOrRedirect } from "@/lib/requireAdmin";
+import { AdminLayout } from "@/components/AdminLayout";
+import { labelStatus } from "@/lib/shipmentFlow";
+import { Timeline as ModernTimeline } from "@/components/Timeline";
 
 import {
   FileText, Image as ImageIcon, Download, ClipboardCheck, 
   ArrowLeft, Info, Package, PlusCircle, CheckCircle, 
-  Loader2, X, Hash, Globe, Scale, AlertCircle
+  Loader2, X, Hash, Globe, Scale, AlertCircle, ArrowRight, ExternalLink
 } from "lucide-react";
 
-// --- TIPOS CORREGIDOS SEGÚN TU TABLA MILESTONES REAL ---
+// --- TIPOS ---
 type ShipmentMilestone = { 
-  id?: string;           // Añadido: para que m.id no de error
+  id?: string;
   type: string; 
-  at: string;            // Tu tabla usa 'at'
+  at: string; 
   note?: string | null; 
-  actor_email?: string | null; // Añadido: para que m.actor_email no de error
+  actor_email?: string | null;
   author?: { name: string } | null; 
 };
 
@@ -48,7 +46,7 @@ type ShipmentDetail = {
   weight_kg?: number | null;
   flight_number?: string | null;
   awb?: string | null;
-  calibre?: string | null; // Cambiado de caliber a calibre (como tu DB)
+  calibre?: string | null;
   color?: string | null;
   milestones: ShipmentMilestone[];
   documents: ShipmentFile[];
@@ -68,16 +66,15 @@ const DOC_TYPES = [
 type MilestoneType = "PACKED" | "DOCS_READY" | "AT_ORIGIN" | "IN_TRANSIT" | "AT_DESTINATION";
 const CHAIN: MilestoneType[] = ["PACKED", "DOCS_READY", "AT_ORIGIN", "IN_TRANSIT", "AT_DESTINATION"];
 
-export default function AdminShipmentDetail() {
-  const router = useRouter();
-  const { id } = router.query;
+export default function AdminUserDetail() {
+  const { id } = useParams(); 
+  const navigate = useNavigate();
 
   const [authReady, setAuthReady] = useState(false);
   const [data, setData] = useState<ShipmentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  // Form States
   const [note, setNote] = useState("");
   const [flight, setFlight] = useState("");
   const [awb, setAwb] = useState("");
@@ -117,22 +114,21 @@ export default function AdminShipmentDetail() {
       const r = await requireAdminOrRedirect();
       if (r.ok) {
         setAuthReady(true);
-        if (typeof id === "string") load(id);
+        if (id) load(id);
       }
     })();
   }, [id, load]);
 
-  // Sincronización con Timeline.tsx
   const timelineItems = useMemo(() => {
-  if (!data?.milestones) return [];
-  return data.milestones.map((m) => ({
-    id: m.id,
-    type: m.type,
-    created_at: m.at, // 'at' es la columna real de tu tabla milestones
-    note: m.note,
-    author_name: m.actor_email || "Admin" // Usamos actor_email que sí existe
-  }));
-}, [data?.milestones]);
+    if (!data?.milestones) return [];
+    return data.milestones.map((m) => ({
+      id: m.id,
+      type: m.type,
+      created_at: m.at,
+      note: m.note,
+      author_name: m.actor_email || "Admin"
+    }));
+  }, [data?.milestones]);
 
   const handleMark = async (type: MilestoneType) => {
     setBusy(true);
@@ -143,18 +139,18 @@ export default function AdminShipmentDetail() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           shipmentId: data?.id, 
-  type, 
-  note: note.trim(),
-  flight_number: flight.trim(), 
-  awb: awb.trim(),
-  calibre: caliber.trim(), // <--- Enviamos 'calibre' al hito
-  color: color.trim(),
-}),
+          type, 
+          note: note.trim(),
+          flight_number: flight.trim(), 
+          awb: awb.trim(),
+          calibre: caliber.trim(),
+          color: color.trim(),
+        }),
       });
       if (res.ok) {
         showToast("Estado actualizado");
         setNote("");
-        load(data!.id);
+        if (id) load(id);
       }
     } catch (e) {
       showToast("Error al actualizar", "error");
@@ -208,7 +204,7 @@ export default function AdminShipmentDetail() {
         body: JSON.stringify({ fileId, shipmentId: data?.id }),
       });
       showToast("Archivo eliminado");
-      load(data!.id);
+      if (id) load(id);
     } finally {
       setBusy(false);
     }
@@ -223,7 +219,7 @@ export default function AdminShipmentDetail() {
     window.open(url, "_blank");
   }
 
-  if (!authReady || loading) return <div className="loader-center"><Loader2 className="spin" /></div>;
+  if (!authReady || loading) return <div className="loader-center"><Loader2 className="animate-spin" /></div>;
 
   return (
     <AdminLayout title={`Detalle ${data?.code}`}>
@@ -232,7 +228,7 @@ export default function AdminShipmentDetail() {
       <div className="admin-page">
         <header className="header-shipment">
           <div className="h-main">
-            <Link href="/admin/shipments" className="back-btn"><ArrowLeft size={16}/> Volver</Link>
+            <button onClick={() => navigate(-1)} className="back-btn-clear"><ArrowLeft size={16}/> Volver</button>
             <h1>{data?.product_name} <small>{data?.product_variety}</small></h1>
             <div className="meta">
               <span className="badge-code"><Hash size={12}/> {data?.code}</span>
@@ -283,7 +279,7 @@ export default function AdminShipmentDetail() {
               <div className="photos-grid">
                 {data?.photos?.map(p => (
                   <div key={p.id} className="photo-item">
-                    <Image src={p.url || ""} alt="Evidencia" width={120} height={90} />
+                    <img src={p.url || ""} alt="Evidencia" className="photo-img-main" />
                     <div className="photo-overlay">
                       <button onClick={() => download(p.id)}><Download size={16}/></button>
                       <button onClick={() => deleteFile(p.id)} className="danger"><X size={16}/></button>
@@ -330,10 +326,10 @@ export default function AdminShipmentDetail() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .admin-page { padding: 20px; max-width: 1400px; margin: 0 auto; }
         .header-shipment { background: #fff; padding: 30px; border-radius: 20px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; }
-        .back-btn { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #64748b; margin-bottom: 15px; }
+        .back-btn-clear { background:none; border:none; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #64748b; margin-bottom: 15px; cursor:pointer; }
         .header-shipment h1 { font-size: 26px; font-weight: 900; margin: 0; color: #1e293b; }
         .header-shipment small { color: #94a3b8; font-weight: 400; }
         .meta { display: flex; gap: 20px; margin-top: 10px; font-size: 14px; color: #64748b; }
@@ -346,38 +342,39 @@ export default function AdminShipmentDetail() {
         .card-header-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .card-header h3 { font-size: 14px; font-weight: 900; text-transform: uppercase; margin: 0; }
         
-        .form-box textarea { width: 100%; height: 80px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 15px; }
+        .form-box textarea { width: 100%; height: 80px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 15px; font-family: inherit; }
         .inputs-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .field label { display: block; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px; }
         .field input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
         .dual { display: flex; gap: 5px; }
         .steps-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
         .step-btn { padding: 12px 5px; font-size: 10px; font-weight: 800; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; transition: 0.2s; }
+        .step-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .step-btn.active { background: #16a34a; color: #fff; border-color: #16a34a; }
         
         .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; }
         .photo-item { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f1f5f9; }
-        .photo-item img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-img-main { width: 100%; height: 100%; object-fit: cover; }
         .photo-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; gap: 8px; align-items: center; justify-content: center; opacity: 0; transition: 0.2s; }
         .photo-item:hover .photo-overlay { opacity: 1; }
         .photo-overlay button { background: #fff; border: none; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .photo-overlay button.danger { color: #dc2626; }
         
         .docs-stack { display: flex; flex-direction: column; gap: 10px; }
         .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 12px; background: #f8fafc; border: 1px solid #f1f5f9; }
         .doc-item.exists { background: #f0fdf4; border-color: #dcfce7; }
         .doc-label { font-size: 13px; font-weight: 700; color: #1e293b; }
         .doc-btns { display: flex; gap: 8px; }
+        .doc-btns button { background: none; border: none; cursor: pointer; color: #64748b; }
+        .doc-btns button.text-red { color: #dc2626; }
         .btn-up-small { color: #2563eb; cursor: pointer; }
         
         .loader-center { height: 100vh; display: grid; place-items: center; }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
         .toast-alert { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px; background: #1e293b; color: white; font-weight: 700; z-index: 1000; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .spacing { margin-top: 25px; }
         .row-gap { display: flex; align-items: center; gap: 10px; }
+        .upload-btn-photo { font-size: 12px; font-weight: 700; color: #2563eb; cursor: pointer; display: flex; align-items: center; gap: 5px; }
       `}</style>
     </AdminLayout>
   );
 }
-
-export const getServerSideProps = () => ({ props: {} });

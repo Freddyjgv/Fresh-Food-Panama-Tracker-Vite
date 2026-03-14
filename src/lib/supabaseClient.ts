@@ -1,23 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// En Vite se usa import.meta.env y el prefijo VITE_
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Verificación estricta en desarrollo
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('CRÍTICO: Variables de Supabase no detectadas en el entorno actual.');
+  console.error('CRÍTICO: Variables de Supabase no detectadas. Asegúrate de que empiecen con VITE_ en tu archivo .env');
 }
 
 export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '', 
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '', 
+  supabaseUrl || '', 
+  supabaseAnonKey || '', 
   {
     auth: {
       persistSession: true,
-      autoRefreshToken: true, // Crucial para que getmyprofile no muera al expirar el token
+      autoRefreshToken: true, 
       detectSessionInUrl: false, 
       storageKey: 'ffp-auth-token',
-      // Esto fuerza al SDK a usar HTTPS siempre, incluso si cree que está en un entorno inseguro
       flowType: 'pkce' 
     }
   }
