@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { getApiBase } from "@/lib/apiBase";
 import { labelStatus, statusBadgeClass } from "@/lib/shipmentFlow";
 import { ClientLayout } from "@/components/ClientLayout";
-import "./ShipmentsPage.css";
 
 type Shipment = {
   id: string;
