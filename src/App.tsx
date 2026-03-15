@@ -1,30 +1,97 @@
-import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { supabase } from "@/lib/supabaseClient";
 import "./styles/globals.css";
 import { LanguageProvider } from "@/lib/uiLanguage";
 
-// --- CARGA DINÁMICA ---
-// 1. Agregamos el Dashboard
-const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'));
+// --- COMPONENTE DE PROTECCIÓN DE RUTAS ---
+const ProtectedRoute = ({ children, requiredRole }: { children: JSX.Element, requiredRole?: 'admin' | 'client' }) => {
+  const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const location = useLocation();
 
-// 2. Renombramos o mantenemos el listado de embarques
-const AdminShipmentsIndex = lazy(() => import('@/pages/admin/shipments/index'));
-const AdminShipmentDetail = lazy(() => import('@/pages/admin/shipments/[id]'));
+  useEffect(() => {
+    let isMounted = true;
 
-const AdminQuotesIndex = lazy(() => import('@/pages/admin/quotes/index'));
-const AdminQuoteDetailPage = lazy(() => import('@/pages/admin/quotes/[id]'));
+    const checkAuth = async () => {
+      try {
+        // 1. Obtener sesión de forma persistente
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          if (isMounted) {
+            setAuthorized(false);
+            setLoading(false);
+          }
+          return;
+        }
 
-const AdminUsers = lazy(() => import('@/pages/admin/users/index'));
-const AdminUserDetail = lazy(() => import('@/pages/admin/users/UserDetail'));
+        // 2. Consultar perfil con manejo de error para evitar bucle 500
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .maybeSingle(); // maybeSingle evita errores si no encuentra nada inmediatamente
 
-const ClientLogin = lazy(() => import('@/pages/login'));
-const AdminLogin = lazy(() => import('@/pages/admin/login'));
+        if (isMounted) {
+          if (error || !profile) {
+            console.error("Error de perfil o acceso denegado:", error);
+            setAuthorized(false);
+          } else if (requiredRole && profile.role !== requiredRole) {
+            setAuthorized(false);
+          } else {
+            setAuthorized(true);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Fallo crítico en Auth:", err);
+        if (isMounted) {
+          setAuthorized(false);
+          setLoading(false);
+        }
+      }
+    };
 
+    checkAuth();
+    return () => { isMounted = false; };
+  }, [location.pathname, requiredRole]); // Escuchamos cambios de ruta para re-validar
+
+  if (loading) {
+    return (
+      <div className="ff-loader-full flex flex-col gap-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-emerald-500"></div>
+        <p className="text-sm font-medium text-slate-500">Verificando sesión...</p>
+      </div>
+    );
+  }
+
+  if (!authorized) {
+    // Si no está autorizado y no estamos ya en login, redirigir
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
+// --- COMPONENTES DE CARGA ---
 const PageLoader = () => (
-  <div className="opacity-0 animate-in fade-in duration-500">
-    <div className="h-1 bg-emerald-500 w-full fixed top-0 left-0 z-50" />
+  <div className="ff-loader-full">
+    <div className="h-1 bg-emerald-500 w-full fixed top-0 left-0 z-50 animate-pulse" />
   </div>
 );
+
+// --- CARGA DINÁMICA ---
+const ClientShipments = lazy(() => import('./pages/shipments/ShipmentsPage'));
+const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'));
+const AdminLogin = lazy(() => import('@/pages/admin/login'));
+const ClientLogin = lazy(() => import('@/pages/login'));
+const AdminShipmentsIndex = lazy(() => import('@/pages/admin/shipments/index'));
+const AdminShipmentDetail = lazy(() => import('@/pages/admin/shipments/[id]'));
+const AdminQuotesIndex = lazy(() => import('@/pages/admin/quotes/index'));
+const AdminQuoteDetailPage = lazy(() => import('@/pages/admin/quotes/[id]'));
+const AdminUsers = lazy(() => import('@/pages/admin/users/index'));
+const AdminUserDetail = lazy(() => import('@/pages/admin/users/UserDetail'));
 
 export default function App() {
   return (
@@ -32,42 +99,38 @@ export default function App() {
       <Router>
         <Suspense fallback={<PageLoader />}>
           <Routes>
+            {/* --- RUTAS PÚBLICAS --- */}
             <Route path="/login" element={<ClientLogin />} />
             <Route path="/admin/login" element={<AdminLogin />} />
 
-            {/* --- DASHBOARD --- */}
-            {/* Esta es la ruta para el archivo Dashboard.tsx */}
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            {/* --- PANEL DE CLIENTES --- */}
+            <Route 
+              path="/shipments" 
+              element={
+                <ProtectedRoute requiredRole="client">
+                  <ClientShipments />
+                </ProtectedRoute>
+              } 
+            />
 
-            {/* --- SHIPMENTS (Embarques) --- */}
-            {/* Esta es la ruta para el index de embarques */}
-            <Route path="/admin/shipments" element={<AdminShipmentsIndex />} />
-            <Route path="/admin/shipments/:id" element={<AdminShipmentDetail />} />
-
-            {/* --- QUOTES (Cotizaciones) --- */}
-            <Route path="/admin/quotes" element={<AdminQuotesIndex />} />
-            <Route path="/admin/quotes/:id" element={<AdminQuoteDetailPage />} />
-
-            {/* --- USUARIOS / CLIENTES --- */}
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/users/:id" element={<AdminUserDetail />} />
+            {/* --- RUTAS ADMINISTRATIVAS --- */}
+            <Route path="/admin/dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/shipments" element={<ProtectedRoute requiredRole="admin"><AdminShipmentsIndex /></ProtectedRoute>} />
+            <Route path="/admin/shipments/:id" element={<ProtectedRoute requiredRole="admin"><AdminShipmentDetail /></ProtectedRoute>} />
+            <Route path="/admin/quotes" element={<ProtectedRoute requiredRole="admin"><AdminQuotesIndex /></ProtectedRoute>} />
+            <Route path="/admin/quotes/:id" element={<ProtectedRoute requiredRole="admin"><AdminQuoteDetailPage /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/users/:id" element={<ProtectedRoute requiredRole="admin"><AdminUserDetail /></ProtectedRoute>} />
 
             {/* --- REDIRECCIONES --- */}
             <Route path="/" element={<Navigate to="/login" replace />} />
-            {/* Al entrar a /admin, mandamos al Dashboard por defecto */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
             {/* --- 404 --- */}
             <Route path="*" element={
               <div className="p-10 text-center flex flex-col items-center justify-center min-h-[50vh]">
                 <h1 className="text-4xl font-black text-slate-200">404</h1>
-                <p className="text-slate-500 font-medium">La página no existe en el Directorio Maestro.</p>
-                <button 
-                  onClick={() => window.location.href='/admin/dashboard'}
-                  className="mt-4 text-emerald-600 font-bold hover:underline"
-                >
-                  Regresar al Dashboard
-                </button>
+                <p className="text-slate-500 font-medium">La página no existe.</p>
               </div>
             } />
           </Routes>
@@ -77,7 +140,7 @@ export default function App() {
       <style>{`
         .ff-loader-full {
           height: 100vh; width: 100vw;
-          display: flex; align-items: center; justify-content: center;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
           background: #f8fafc;
         }
       `}</style>

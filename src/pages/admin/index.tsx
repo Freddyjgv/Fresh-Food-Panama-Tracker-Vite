@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// Rutas corregidas a dos niveles de profundidad
 import { supabase } from "../../lib/supabaseClient";
 import { getApiBase } from "../../lib/apiBase";
 import { AdminLayout } from "../../components/AdminLayout";
@@ -54,14 +53,12 @@ export default function AdminDashboard() {
       const token = sessionData.session?.access_token;
       if (!token) return;
 
-      // 1. Obtener Clientes (Netlify Function)
       const resClients = await fetch(`${getApiBase()}/.netlify/functions/listClients`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const clientsJson = await resClients.json();
       const clientList = Array.isArray(clientsJson) ? clientsJson : (clientsJson.items || []);
       
-      // 2. Obtener Productos (Supabase Directo)
       const { data: products } = await supabase.from('products').select('id, name, variety');
 
       setClients(clientList);
@@ -73,7 +70,6 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- Lógica de Filtrado y Memoize ---
   const filteredClients = useMemo(() => {
     const q = clientQuery.toLowerCase();
     return clients.filter(c => 
@@ -153,7 +149,6 @@ export default function AdminDashboard() {
               </div>
 
               <div className="modal-body">
-                {/* BUSCADOR DE CLIENTE */}
                 <div className="input-group">
                   <label><User size={12}/> CLIENTE</label>
                   <div className={`custom-search ${formData.client_id ? 'selected' : ''}`}>
@@ -261,7 +256,7 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .btn-trigger { background: #1e293b; color: white; padding: 14px 28px; border: none; border-radius: 18px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 12px; }
         .glass-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(10px); z-index: 9999; display: flex; align-items: center; justify-content: center; }
         .elite-modal { background: white; width: 500px; border-radius: 32px; padding: 35px; box-shadow: 0 50px 100px -20px rgba(0,0,0,0.25); }
@@ -292,7 +287,7 @@ export default function AdminDashboard() {
         .box-counter input { width: 90px; background: #f0fdf4; border: 2px solid #dcfce7; border-radius: 16px; padding: 12px; text-align: center; font-weight: 900; font-size: 1.4rem; color: #16a34a; outline: none; }
         .btn-finalize { background: #16a34a; color: white; border: none; padding: 18px 30px; border-radius: 20px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 10px; }
         .btn-finalize:disabled { background: #cbd5e1; cursor: not-allowed; }
-      `}</style>
+      ` }} />
     </AdminLayout>
   );
 }
