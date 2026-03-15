@@ -1,3 +1,9 @@
+# 1. ESTO OBLIGA A NETLIFY A NO USAR EL PLUGIN DE NEXT
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+  [plugins.inputs]
+    disableRuntime = true
+
 [build]
   command = "npm run build"
   publish = "dist"
@@ -6,10 +12,13 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[functions."renderQuotePdf"]
-  included_files = [
-    "public/brand/**"
-  ]
+[functions.renderQuotePdf]
+  included_files = ["public/brand/**"]
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 [[headers]]
   for = "/.netlify/functions/*"
@@ -17,16 +26,3 @@
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Headers = "Authorization, Content-Type, Cache-Control, X-Requested-With, Accept"
     Access-Control-Allow-Methods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-
-[dev]
-  command = "npm run dev"
-  port = 8888
-  targetPort = 3000
-  publish = "public" # IMPORTANTE: En dev usamos public para los _redirects
-  framework = "#custom"
-
-# ESTO ES LO QUE TE FALTA PARA EVITAR EL 404
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
