@@ -1,0 +1,1 @@
+import{r as e,t}from"./react-DGmkrIjS.js";var n=e(t());function r(){return(0,n.useEffect)(()=>{window.location.href=`/login`},[]),null}export{r as default};
