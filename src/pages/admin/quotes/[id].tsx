@@ -218,9 +218,9 @@ export default function AdminQuoteDetailPage() {
       setToast("Sesión expirada");
       return;
     }
-    // EL FIX: El nombre debe ser RenderQuotePdf (exactamente como el archivo .tsx)
+    // EL FIX: El nombre debe ser renderQuotePdf (exactamente como el archivo .tsx)
     // Se eliminan las minúsculas 'renderquote' que tenías antes
-    const pdfUrl = `${getApiBase()}/.netlify/functions/RenderQuotePdf?id=${id}&token=${session.access_token}&t=${Date.now()}`;
+    const pdfUrl = `${getApiBase()}/.netlify/functions/renderQuotePdf?id=${id}&token=${session.access_token}&t=${Date.now()}`;
     window.open(pdfUrl, '_blank');
   };
 
