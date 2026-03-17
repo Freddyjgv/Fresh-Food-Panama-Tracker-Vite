@@ -165,20 +165,34 @@ export default function Dashboard() {
               <button className="btn-ghost" onClick={() => navigate('/admin/quotes')}>Ver todas</button>
             </div>
             <div className="items-list">
-              {data.recentQuotes.map(q => (
-                <div key={q.id} className={`quote-item-wide ${q.status === 'Solicitud' ? 'urgent' : ''}`} onClick={() => navigate(`/admin/quotes/${q.id}`)}>
-                  <div className="q-main">
-                    <span className="q-client">{q.clients?.name}</span>
-                    <span className="q-code">{q.quote_number || 'Borrador'}</span>
-                  </div>
-                  <div className="q-status-box">
-                    <span className="q-price">{formatCurrency(q.total)}</span>
-                    <span className={`badge-status ${q.status?.toLowerCase()}`}>{q.status}</span>
-                  </div>
-                  <div className="q-arrow-box"><ChevronRight size={18} /></div>
-                </div>
-              ))}
-            </div>
+  {data.recentQuotes.map(q => {
+    // BLINDAJE DEL NOMBRE DEL CLIENTE
+    // 1. Intenta desde el Join (Relación DB)
+    // 2. Si es null, intenta desde el Snapshot (Datos guardados en el JSON de la cotización)
+    // 3. Si todo falla, pone "Cliente No Identificado"
+    const clientName = q.clients?.name || q.client_snapshot?.name || 'Cliente No Identificado';
+
+    return (
+      <div 
+        key={q.id} 
+        className={`quote-item-wide ${q.status === 'Solicitud' ? 'urgent' : ''}`} 
+        onClick={() => navigate(`/admin/quotes/${q.id}`)}
+      >
+        <div className="q-main">
+          <span className="q-client">{clientName}</span>
+          <span className="q-code">{q.quote_number || q.quote_no || 'Borrador'}</span>
+        </div>
+        <div className="q-status-box">
+          <span className="q-price">{formatCurrency(q.total)}</span>
+          <span className={`badge-status ${q.status?.toLowerCase().replace(/\s/g, '-')}`}>
+            {q.status}
+          </span>
+        </div>
+        <div className="q-arrow-box"><ChevronRight size={18} /></div>
+      </div>
+    );
+  })}
+</div>
           </section>
 
           {/* COLUMNA 2: SEGUIMIENTO (DISEÑO DE ALTA FUERZA) */}
