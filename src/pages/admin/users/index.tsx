@@ -14,8 +14,37 @@ import { NewClientModal } from '@/components/clients/NewClientModal';
 
 const getFlag = (country: string) => {
   const flags: Record<string, string> = {
-    'Panamá': '🇵🇦', 'España': '🇪🇸', 'Colombia': '🇨🇴', 'USA': '🇺🇸', 
-    'Ecuador': '🇪🇨', 'Costa Rica': '🇨🇷', 'Chile': '🇨🇱', 'México': '🇲🇽'
+   // Origen y América
+    'Panamá': '🇵🇦', 
+    'España': '🇪🇸', 
+    'Colombia': '🇨🇴', 
+    'Ecuador': '🇪🇨', 
+    'Costa Rica': '🇨🇷', 
+    'Chile': '🇨🇱', 
+    'México': '🇲🇽',
+    
+    // Norteamérica
+    'USA': '🇺🇸',
+    'Estados Unidos': '🇺🇸',
+    'United States': '🇺🇸',
+
+    // Top 15 Europa (Comercial/Importación)
+    'Alemania': '🇩🇪',
+    'Francia': '🇫🇷',
+    'Reino Unido': '🇬🇧',
+    'Italia': '🇮🇹',
+    'Países Bajos': '🇳🇱',
+    'Holanda': '🇳🇱',
+    'Bélgica': '🇧🇪',
+    'Suiza': '🇨🇭',
+    'Polonia': '🇵🇱',
+    'Suecia': '🇸🇪',
+    'Noruega': '🇳🇴',
+    'Austria': '🇦🇹',
+    'Portugal': '🇵🇹',
+    'Irlanda': '🇮🇪',
+    'Dinamarca': '🇩🇰',
+    'Finlandia': '🇫🇮'
   };
   return flags[country] || '🌐';
 };

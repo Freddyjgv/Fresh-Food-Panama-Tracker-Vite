@@ -29,7 +29,6 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
   
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // --- NUEVA LÓGICA: CERRAR AL HACER CLIC FUERA ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -89,7 +88,6 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
               <Globe size={14} /> <span>{lang.toUpperCase()}</span>
             </button>
             
-            {/* CONTENEDOR DE USUARIO ACTUALIZADO */}
             <div className="ff-user" ref={menuRef}>
               <button type="button" className="ff-user__btn" onClick={() => setMenuOpen(!menuOpen)}>
                 <UserCircle2 size={18} />
@@ -97,7 +95,6 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
                 <ChevronDown size={14} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
               </button>
 
-              {/* --- EL MENÚ QUE FALTABA --- */}
               {menuOpen && (
                 <div className="ff-user__menu">
                   <div className="ff-user__info">
@@ -117,16 +114,22 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
       </header>
 
       <aside className="ff-side">
+        {/* ESPACIADOR SUPERIOR: Esto da el aire necesario antes del primer item */}
+        <div className="ff-side__brand" style={{ height: '40px', display: 'flex', alignItems: 'center', padding: '0 16px', marginBottom: '12px' }}>
+             {!sideCollapsed && <span style={{ color: '#ffffff', fontWeight: 900, fontSize: '14px', letterSpacing: '1px', opacity: 0.5 }}>MENÚ PRINCIPAL</span>}
+        </div>
+
         <button type="button" className="ff-side__toggle" onClick={() => setSideCollapsed(!sideCollapsed)}>
           {sideCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
+
         <nav className="ff-side__nav">
           {nav.map((n) => {
             const Icon = n.icon;
             const active = location.pathname.startsWith(n.href);
             return (
               <Link key={n.href} to={n.href} className={`ff-side__item ${active ? "is-active" : ""}`}>
-                <span className="ff-side__ico"><Icon size={16} /></span>
+                <span className="ff-side__ico"><Icon size={20} /></span>
                 <span className="ff-side__lbl">{n.label}</span>
                 {active && <div className="ff-active-indicator" />}
               </Link>
@@ -147,7 +150,6 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
         .ff-top { grid-area: top; background: white; border-bottom: 1px solid #eef2f6; position: sticky; top: 0; z-index: 100; }
         .ff-top__inner { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px; }
         
-        /* USER MENU STYLES */
         .ff-user { position: relative; }
         .ff-user__btn { 
           display: flex; align-items: center; gap: 8px; background: #f8fafc; 
@@ -174,65 +176,83 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
         }
         .ff-user__logout:hover { background: #fef2f2; }
 
-  /* SIDEBAR CLONADO EXACTO DEL ADMIN LAYOUT */
-.ff-side { 
-  grid-area: side; 
-  background: #284b2c; /* EL VERDE OLIVA EXACTO DE TU IMAGEN */
-  border-right: 1px solid #1f3a22; 
-  padding: 24px 12px; 
-  position: relative; 
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+        .ff-side { 
+          grid-area: side; 
+          background: #284b2c; 
+          border-right: 1px solid #1f3a22; 
+          padding: 24px 12px; 
+          position: relative; 
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          z-index: 90;
+        }
 
-/* ITEMS DEL MENÚ (Estado Normal) */
-.ff-side__item { 
-  display: flex; 
-  align-items: center; 
-  gap: 16px; /* Más espacio como en la imagen */
-  padding: 12px 16px; 
-  color: #ffffff; /* Texto blanco puro */
-  text-decoration: none; 
-  border-radius: 12px; 
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease; 
-  position: relative; 
-}
+        .ff-side__toggle {
+          position: absolute;
+          right: -12px;
+          top: 74px; /* Bajamos el botón de colapso para que no estorbe arriba */
+          width: 24px;
+          height: 24px;
+          background: #f59e0b;
+          border: none;
+          border-radius: 50%;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          z-index: 100;
+        }
 
-/* HOVER DELICADO (Efecto Ámbar/Dorado de tu Admin) */
-.ff-side__item:hover { 
-  background: #3a5a3e; /* Fondo ligeramente más claro */
-  color: #f59e0b; /* El sutil toque dorado en texto e icono */
-}
+        .ff-side__item { 
+          display: flex; 
+          align-items: center; 
+          gap: 16px; 
+          padding: 12px 16px; 
+          color: #ffffff; 
+          text-decoration: none; 
+          border-radius: 12px; 
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s ease; 
+          position: relative; 
+        }
 
-/* ITEM SELECCIONADO / ACTIVO (Como 'Clientes' en tu imagen) */
-.ff-side__item.is-active { 
-  background: #415f45; /* Fondo resaltado de la imagen */
-  color: #ffffff; 
-  font-weight: 700; 
-}
+        .ff-side__item:hover { 
+          background: #3a5a3e; 
+          color: #f59e0b; 
+        }
 
-/* INDICADOR ACTIVO (La línea lateral ámbar) */
-.ff-active-indicator { 
-  position: absolute; 
-  left: 0; 
-  top: 10px; 
-  bottom: 10px; 
-  width: 4px; 
-  background: #f59e0b; /* Línea ámbar/dorada */
-  border-radius: 0 4px 4px 0; 
-}
+        .ff-side__item.is-active { 
+          background: #415f45; 
+          color: #ffffff; 
+          font-weight: 700; 
+        }
 
-}
-        .ff-active-indicator { position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; background: #10b981; border-radius: 0 4px 4px 0; }
+        .ff-active-indicator { 
+          position: absolute; 
+          left: 0; 
+          top: 10px; 
+          bottom: 10px; 
+          width: 4px; 
+          background: #f59e0b; 
+          border-radius: 0 4px 4px 0; 
+        }
+
         .ff-main { grid-area: main; overflow-y: auto; background: #f8fafc; }
         .ff-content { padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
         .ff-content-wide { padding: 32px; max-width: 100%; margin: 0; width: 100%; }
         .ff-top__title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0; }
         .ff-top__sub { font-size: 11px; color: #64748b; }
         .ff-chip { display: flex; align-items: center; gap: 6px; background: #f1f5f9; border: none; padding: 6px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; margin-right: 8px; }
+
+        /* Ajustes para estado colapsado */
+        .is-collapsed .ff-side__lbl, 
+        .is-collapsed .ff-side__brand { display: none; }
+        .is-collapsed .ff-side__item { justify-content: center; padding: 12px; }
+        .is-collapsed .ff-side__ico { margin: 0; }
       `}</style>
     </div>
   );

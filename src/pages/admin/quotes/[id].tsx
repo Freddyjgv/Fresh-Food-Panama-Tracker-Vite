@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { 
   Save, FileText, Loader2, Plane, Ship, 
   Thermometer, Droplets, Calculator, MapPin, Shield, ArrowRight, Package,
-  Maximize, AlertCircle, TrendingDown
+  Maximize, AlertCircle, TrendingDown, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { getApiBase } from "../../../lib/apiBase";
@@ -11,8 +11,9 @@ import { requireAdminOrRedirect } from "../../../lib/requireAdmin";
 import { AdminLayout } from "../../../components/AdminLayout";
 import { LocationSelector } from "../../../components/LocationSelector";
 
-// --- NUEVA CONSTANTE DE NEGOCIO ---
+// --- CONSTANTES ---
 const GLOBAL_MARGIN_THRESHOLD = 10.0; 
+const LOGS_PER_PAGE = 5; // Límite solicitado
 
 const FIELD_LABELS: { [key: string]: string } = {
   boxes: "Cajas",
@@ -62,6 +63,9 @@ export default function AdminQuoteDetailPage() {
   const [varieties, setVarieties] = useState<string[]>([]);
   const [logs, setLogs] = useState<any[]>([]); 
   
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [status, setStatus] = useState("draft");
   const [boxes, setBoxes] = useState(0);
   const [weightKg, setWeightKg] = useState(0);
@@ -96,7 +100,6 @@ export default function AdminQuoteDetailPage() {
     };
   }, [data]);
 
-  // --- LÓGICA DE ANÁLISIS MODIFICADA PARA MARGEN GLOBAL ---
   const analysis = useMemo(() => {
     const lines = Object.entries(costs).map(([key, val]) => {
       let qty = 1;
@@ -104,21 +107,27 @@ export default function AdminQuoteDetailPage() {
       if (key === 'flete') qty = weightKg;
       const baseTotalCost = (val.base || 0) * qty;
       const totalSaleRow = (val.unitSale || 0) * qty;
-      const currentMargin = totalSaleRow > 0 ? ((1 - (baseTotalCost / totalSaleRow)) * 100).toFixed(2) : "0.00";
-      return { key, ...val, qty, baseTotalCost, totalSaleRow, margin: currentMargin };
+      const currentMarginNum = totalSaleRow > 0 ? (1 - (baseTotalCost / totalSaleRow)) * 100 : 0;
+      return { key, ...val, qty, baseTotalCost, totalSaleRow, margin: currentMarginNum.toFixed(2) };
     });
 
     const totalCost = lines.reduce((acc, curr) => acc + curr.baseTotalCost, 0);
     const totalSale = lines.reduce((acc, curr) => acc + curr.totalSaleRow, 0);
     const profit = totalSale - totalCost;
     const perBox = boxes > 0 ? totalSale / boxes : 0;
-
-    // Cálculo del Margen de Utilidad Global
     const globalMargin = totalSale > 0 ? (profit / totalSale) * 100 : 0;
     const isRisk = globalMargin < GLOBAL_MARGIN_THRESHOLD && totalSale > 0;
 
     return { lines, totalCost, totalSale, profit, perBox, globalMargin, isRisk };
   }, [costs, boxes, weightKg]);
+
+  // Lógica de Paginación de Logs
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * LOGS_PER_PAGE;
+    return logs.slice(start, start + LOGS_PER_PAGE);
+  }, [logs, currentPage]);
+
+  const totalPages = Math.ceil(logs.length / LOGS_PER_PAGE);
 
   const loadLogs = useCallback(async () => {
     if (!id) return;
@@ -199,19 +208,14 @@ export default function AdminQuoteDetailPage() {
 
   async function handleSave() {
     if (!id) return;
-
-    // --- INTERCEPTOR DE SEGURIDAD (MARGEN < 10%) ---
     if (analysis.isRisk) {
-      const confirmSave = window.confirm(
-        `ATENCIÓN: La utilidad global (${analysis.globalMargin.toFixed(2)}%) es inferior al 10% mínimo. ¿Deseas proceder bajo tu responsabilidad?`
-      );
-      if (!confirmSave) return;
+      if (!window.confirm(`RIESGO: La utilidad (${analysis.globalMargin.toFixed(2)}%) es inferior al 10%. ¿Proceder?`)) return;
     }
-
     setBusy(true);
     try {
       const totalVentaCientifico = analysis.lines.reduce((acc, curr) => acc + curr.totalSaleRow, 0);
       const payload = {
+        id,
         total: totalVentaCientifico, 
         status, mode, destination: place,
         boxes: Number(boxes), weight_kg: Number(weightKg),
@@ -234,12 +238,20 @@ export default function AdminQuoteDetailPage() {
         product_id: productId || null,
         product_details: { variety, color, brix, caliber }
       };
-      const { error } = await supabase.from("quotes").update(payload).eq("id", id);
-      if (error) throw error;
-      setToast("¡Cotización guardada!");
-      loadLogs();
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${getApiBase()}/.netlify/functions/updateQuote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error("Error Servidor");
+      
+      setToast("Sincronizado");
+      await loadData(); 
       setTimeout(() => setToast(null), 3000);
-    } catch (err) { setToast("Error al guardar"); } finally { setBusy(false); }
+    } catch (err) { setToast("Error"); } finally { setBusy(false); }
   }
 
   const handlePrintPdf = async () => {
@@ -261,11 +273,10 @@ export default function AdminQuoteDetailPage() {
     <AdminLayout title={`Cotización: ${headerInfo.name}`}>
       <div className="ff-container">
         
-        {/* --- BANNER DE ALERTA GLOBAL --- */}
         {analysis.isRisk && (
           <div className="ff-alert-banner">
             <TrendingDown size={18} />
-            <span><b>RIESGO DE RENTABILIDAD:</b> El margen de beneficio total está por debajo del 10%.</span>
+            <span><b>BAJA RENTABILIDAD:</b> El margen global es inferior al 10%.</span>
           </div>
         )}
 
@@ -274,7 +285,7 @@ export default function AdminQuoteDetailPage() {
             <div className="codeRow">
               <div className="codeIcon"><FileText size={20} color="#166534" /></div>
               <div style={{ minWidth: 0 }}>
-                <div className="heroLabel">Identificador Único</div>
+                <div className="heroLabel">Identificador de Gestión</div>
                 <div className="code">{headerInfo.code}</div>
                 <div className="productLine"><b>{headerInfo.name}</b></div>
               </div>
@@ -329,9 +340,9 @@ export default function AdminQuoteDetailPage() {
           </div>
         </div>
 
-        {/* --- TABLA COMERCIAL --- */}
+        {/* --- ANÁLISIS --- */}
         <div className="ff-card">
-          <div className="table-h"><Calculator size={18} color="#16a34a"/> <span>Análisis Comercial</span></div>
+          <div className="table-h"><Calculator size={18} color="#16a34a"/> <span>Matriz Comercial</span></div>
           <table className="a-table">
             <thead><tr><th align="left">CONCEPTO</th><th align="right">COSTO UNIT.</th><th align="center">CANT.</th><th align="right">P. UNIT. VENTA</th><th align="right">VENTA TOTAL</th><th align="center">MARGEN %</th></tr></thead>
             <tbody>
@@ -348,27 +359,27 @@ export default function AdminQuoteDetailPage() {
             </tbody>
           </table>
           <div className="a-footer">
-            <div className="stat">COSTO OPERATIVO <b>${analysis.totalCost.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
-            <div className="stat">VALOR VENTA <b className="g">${analysis.totalSale.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
+            <div className="stat">INVERSIÓN <b>${analysis.totalCost.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
+            <div className="stat">VENTA BRUTA <b className="g">${analysis.totalSale.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
             <div className="stat">UTILIDAD <b className="b">${analysis.profit.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
             <div className={`stat featured ${analysis.isRisk ? 'stat-danger' : ''}`}>
-              PRECIO/CAJA <b>USD {analysis.perBox.toFixed(2)}</b>
-              <div className="stat-sub">Utilidad Global: {analysis.globalMargin.toFixed(2)}%</div>
+               PRECIO/CAJA <b>USD {analysis.perBox.toFixed(2)}</b>
+               <div className="stat-sub">M. Global: {analysis.globalMargin.toFixed(2)}%</div>
             </div>
           </div>
         </div>
 
         <div className="ff-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-          <div className="table-h" style={{ color: '#b45309' }}><AlertCircle size={18}/> <span>Términos y Condiciones (Visibles en PDF)</span></div>
+          <div className="table-h" style={{ color: '#b45309' }}><AlertCircle size={18}/> <span>Términos Contractuales</span></div>
           <textarea className="terms-editor" value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} />
         </div>
 
-        {/* --- HISTORIAL Actividad --- */}
+        {/* --- HISTORIAL CON PAGINACIÓN --- */}
         <div className="ff-card">
           <div className="table-h"><Package size={18} color="#64748b"/> <span>Historial de Actividad</span></div>
           <div className="log-list">
-            {logs.length === 0 && <div className="no-logs">No hay cambios registrados aún.</div>}
-            {logs.map((log) => (
+            {logs.length === 0 && <div className="no-logs">Sin cambios registrados.</div>}
+            {paginatedLogs.map((log) => (
               <div key={log.id} className="log-item-wrapper">
                 <div className="log-item">
                   <div className="log-meta">
@@ -379,17 +390,17 @@ export default function AdminQuoteDetailPage() {
                     <div className="ff-dot-wrapper">
                       <div className="ff-step-dot is-active"><div className="ff-note-indicator-dot"></div></div>
                       <div className="ff-note-tooltip ff-history-tooltip">
-                        <div className="ff-tooltip-tag">CAMBIOS REALIZADOS</div>
+                        <div className="ff-tooltip-tag">AUDITORÍA DE CAMBIOS</div>
                         <div className="ff-history-changes-grid">
                           {Object.entries(log.changes || {})
-                            .filter(([key, val]: [string, any]) => typeof val.new !== 'object')
+                            .filter(([_, val]: [string, any]) => typeof val.new !== 'object')
                             .map(([key, val]: [string, any]) => (
                                 <div key={key} className="ff-history-row">
                                   <span className="ff-history-label">{FIELD_LABELS[key] || key}</span>
                                   <div className="ff-history-vals">
-                                    <span className="ff-history-old">{key === 'terms' ? "Texto" : String(val.old ?? '—')}</span>
+                                    <span className="ff-history-old">{key === 'terms' ? "Antiguo" : String(val.old ?? '—')}</span>
                                     <ArrowRight size={10} style={{ opacity: 0.5 }} />
-                                    <span className="ff-history-new">{key === 'terms' ? "Actualizado" : String(val.new ?? '—')}</span>
+                                    <span className="ff-history-new">{key === 'terms' ? "Nuevo" : String(val.new ?? '—')}</span>
                                   </div>
                                 </div>
                             ))}
@@ -403,13 +414,34 @@ export default function AdminQuoteDetailPage() {
               </div>
             ))}
           </div>
+          
+          {/* CONTROLES DE PAGINACIÓN */}
+          {logs.length > LOGS_PER_PAGE && (
+            <div className="log-pagination">
+              <button 
+                disabled={currentPage === 1} 
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="pag-btn"
+              >
+                <ChevronLeft size={16} /> Anterior
+              </button>
+              <span className="pag-info">Página {currentPage} de {totalPages}</span>
+              <button 
+                disabled={currentPage === totalPages} 
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="pag-btn"
+              >
+                Siguiente <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
 
         {toast && <div className="toast">{toast}</div>}
       </div>
 
       <style>{`
-        .ff-container { padding: 30px; max-width: 1250px; margin: 0 auto; font-family: sans-serif; }
+        .ff-container { padding: 30px; max-width: 1250px; margin: 0 auto; font-family: 'Inter', sans-serif; }
         .ff-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .hero { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .heroLeft { display: flex; align-items: center; flex: 1; }
@@ -460,19 +492,19 @@ export default function AdminQuoteDetailPage() {
         .stat.featured b { color: white; }
         .stat-danger { background: #450a0a !important; border: 2px solid #ef4444; }
         .stat-sub { font-size: 9px; margin-top: 4px; opacity: 0.8; display: block; }
-        .ff-alert-banner { background: #fee2e2; border: 1px solid #fecaca; padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; color: #b91c1c; font-size: 13px; }
+        .ff-alert-banner { background: #fee2e2; border: 1px solid #fecaca; padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; color: #b91c1c; font-size: 13px; font-weight: 600; }
         .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 12px 25px; border-radius: 10px; z-index: 100; box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
         .spin { animation: spin 1s linear infinite; }
         .terms-editor { width: 100%; min-height: 100px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 13px; color: #475569; line-height: 1.5; outline: none; resize: vertical; background: #fffbeb; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
-        /* --- HISTORIAL --- */
+        /* --- HISTORIAL Y PAGINACIÓN --- */
         .log-list { display: flex; flex-direction: column; }
         .no-logs { padding: 20px; text-align: center; color: #94a3b8; font-size: 13px; }
         .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #fff; border-bottom: 1px solid #f1f5f9; }
         .log-meta { display: flex; flex-direction: column; }
-        .log-user { font-size: 12px; font-weight: 800; color: #1e293b; }
+        .log-user { font-size: 12px; font-weight: 800; color: #1e293b; text-transform: capitalize; }
         .log-date { font-size: 10px; color: #94a3b8; }
         .log-action-area { display: flex; align-items: center; gap: 12px; }
         .ff-dot-wrapper { height: 14px; width: 14px; position: relative; display: flex; align-items: center; justify-content: center; }
@@ -489,6 +521,12 @@ export default function AdminQuoteDetailPage() {
         .ff-history-old { color: #f87171; font-size: 10px; text-decoration: line-through; }
         .ff-history-new { color: #4ade80; font-size: 11px; font-weight: 700; color: white; }
         .ff-tooltip-arrow { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 7px solid #1e293b; }
+        
+        .log-pagination { display: flex; justify-content: center; align-items: center; gap: 20px; padding: 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; border-radius: 0 0 12px 12px; }
+        .pag-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer; transition: 0.2s; }
+        .pag-btn:hover:not(:disabled) { background: #f1f5f9; color: #1e293b; }
+        .pag-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pag-info { font-size: 12px; font-weight: 600; color: #94a3b8; }
       `}</style>
     </AdminLayout>
   ); 
