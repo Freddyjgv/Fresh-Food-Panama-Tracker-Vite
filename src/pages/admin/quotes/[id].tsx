@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { 
   Save, FileText, Loader2, Plane, Ship, 
   Thermometer, Droplets, Calculator, MapPin, Shield, ArrowRight, Package,
-  Maximize, AlertCircle
+  Maximize, AlertCircle, TrendingDown
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { getApiBase } from "../../../lib/apiBase";
@@ -11,7 +11,9 @@ import { requireAdminOrRedirect } from "../../../lib/requireAdmin";
 import { AdminLayout } from "../../../components/AdminLayout";
 import { LocationSelector } from "../../../components/LocationSelector";
 
-// --- TRADUCCIONES PARA EL HISTORIAL ---
+// --- NUEVA CONSTANTE DE NEGOCIO ---
+const GLOBAL_MARGIN_THRESHOLD = 10.0; 
+
 const FIELD_LABELS: { [key: string]: string } = {
   boxes: "Cajas",
   weight_kg: "Peso (Kg)",
@@ -58,7 +60,7 @@ export default function AdminQuoteDetailPage() {
   const [data, setData] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [varieties, setVarieties] = useState<string[]>([]);
-  const [logs, setLogs] = useState<any[]>([]); // Estado para el historial
+  const [logs, setLogs] = useState<any[]>([]); 
   
   const [status, setStatus] = useState("draft");
   const [boxes, setBoxes] = useState(0);
@@ -94,6 +96,7 @@ export default function AdminQuoteDetailPage() {
     };
   }, [data]);
 
+  // --- LÓGICA DE ANÁLISIS MODIFICADA PARA MARGEN GLOBAL ---
   const analysis = useMemo(() => {
     const lines = Object.entries(costs).map(([key, val]) => {
       let qty = 1;
@@ -104,11 +107,17 @@ export default function AdminQuoteDetailPage() {
       const currentMargin = totalSaleRow > 0 ? ((1 - (baseTotalCost / totalSaleRow)) * 100).toFixed(2) : "0.00";
       return { key, ...val, qty, baseTotalCost, totalSaleRow, margin: currentMargin };
     });
+
     const totalCost = lines.reduce((acc, curr) => acc + curr.baseTotalCost, 0);
     const totalSale = lines.reduce((acc, curr) => acc + curr.totalSaleRow, 0);
     const profit = totalSale - totalCost;
     const perBox = boxes > 0 ? totalSale / boxes : 0;
-    return { lines, totalCost, totalSale, profit, perBox };
+
+    // Cálculo del Margen de Utilidad Global
+    const globalMargin = totalSale > 0 ? (profit / totalSale) * 100 : 0;
+    const isRisk = globalMargin < GLOBAL_MARGIN_THRESHOLD && totalSale > 0;
+
+    return { lines, totalCost, totalSale, profit, perBox, globalMargin, isRisk };
   }, [costs, boxes, weightKg]);
 
   const loadLogs = useCallback(async () => {
@@ -190,6 +199,15 @@ export default function AdminQuoteDetailPage() {
 
   async function handleSave() {
     if (!id) return;
+
+    // --- INTERCEPTOR DE SEGURIDAD (MARGEN < 10%) ---
+    if (analysis.isRisk) {
+      const confirmSave = window.confirm(
+        `ATENCIÓN: La utilidad global (${analysis.globalMargin.toFixed(2)}%) es inferior al 10% mínimo. ¿Deseas proceder bajo tu responsabilidad?`
+      );
+      if (!confirmSave) return;
+    }
+
     setBusy(true);
     try {
       const totalVentaCientifico = analysis.lines.reduce((acc, curr) => acc + curr.totalSaleRow, 0);
@@ -219,7 +237,7 @@ export default function AdminQuoteDetailPage() {
       const { error } = await supabase.from("quotes").update(payload).eq("id", id);
       if (error) throw error;
       setToast("¡Cotización guardada!");
-      loadLogs(); // Recargar historial después de guardar
+      loadLogs();
       setTimeout(() => setToast(null), 3000);
     } catch (err) { setToast("Error al guardar"); } finally { setBusy(false); }
   }
@@ -243,6 +261,14 @@ export default function AdminQuoteDetailPage() {
     <AdminLayout title={`Cotización: ${headerInfo.name}`}>
       <div className="ff-container">
         
+        {/* --- BANNER DE ALERTA GLOBAL --- */}
+        {analysis.isRisk && (
+          <div className="ff-alert-banner">
+            <TrendingDown size={18} />
+            <span><b>RIESGO DE RENTABILIDAD:</b> El margen de beneficio total está por debajo del 10%.</span>
+          </div>
+        )}
+
         <div className="hero">
           <div className="heroLeft">
             <div className="codeRow">
@@ -256,9 +282,15 @@ export default function AdminQuoteDetailPage() {
           </div>
           <div className="heroRight">
             <div className="head-actions">
-              <div className="kpi-box"><span className="kpi-val">USD {analysis.perBox.toFixed(2)}</span><span className="kpi-lab">PRECIO POR CAJA</span></div>
+              <div className="kpi-box">
+                <span className={`kpi-val ${analysis.isRisk ? 'txt-danger' : ''}`}>USD {analysis.perBox.toFixed(2)}</span>
+                <span className="kpi-lab">PRECIO POR CAJA</span>
+              </div>
               <button onClick={handlePrintPdf} className="pdf-link"><FileText size={18}/> PDF</button>
-              <button className="btn-save" onClick={handleSave} disabled={busy}>{busy ? <Loader2 size={18} className="spin"/> : <Save size={18}/>} {busy ? 'Guardando...' : 'Guardar'}</button>
+              <button className={`btn-save ${analysis.isRisk ? 'btn-danger' : ''}`} onClick={handleSave} disabled={busy}>
+                {busy ? <Loader2 size={18} className="spin"/> : <Save size={18}/>} 
+                {busy ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
             <span className="pill green"><MapPin size={14}/> PTY <ArrowRight size={12}/> {place || 'Destino'}</span>
             <span className="pill blue"><Shield size={14}/> {incoterm}</span>
@@ -272,7 +304,7 @@ export default function AdminQuoteDetailPage() {
           </div>
         </div>
 
-        {/* --- FRAGMENTOS DE UI ORIGINALES --- */}
+        {/* --- CALIDAD --- */}
         <div className="ff-card strip">
           <div className="strip-label">CALIDAD</div>
           <div className="strip-grid">
@@ -284,6 +316,7 @@ export default function AdminQuoteDetailPage() {
           </div>
         </div>
 
+        {/* --- LOGÍSTICA --- */}
         <div className="ff-card strip blue">
           <div className="strip-label">LOGÍSTICA</div>
           <div className="strip-grid">
@@ -296,6 +329,7 @@ export default function AdminQuoteDetailPage() {
           </div>
         </div>
 
+        {/* --- TABLA COMERCIAL --- */}
         <div className="ff-card">
           <div className="table-h"><Calculator size={18} color="#16a34a"/> <span>Análisis Comercial</span></div>
           <table className="a-table">
@@ -317,7 +351,10 @@ export default function AdminQuoteDetailPage() {
             <div className="stat">COSTO OPERATIVO <b>${analysis.totalCost.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
             <div className="stat">VALOR VENTA <b className="g">${analysis.totalSale.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
             <div className="stat">UTILIDAD <b className="b">${analysis.profit.toLocaleString(undefined, {minimumFractionDigits:2})}</b></div>
-            <div className="stat featured">PRECIO/CAJA <b>USD {analysis.perBox.toFixed(2)}</b></div>
+            <div className={`stat featured ${analysis.isRisk ? 'stat-danger' : ''}`}>
+              PRECIO/CAJA <b>USD {analysis.perBox.toFixed(2)}</b>
+              <div className="stat-sub">Utilidad Global: {analysis.globalMargin.toFixed(2)}%</div>
+            </div>
           </div>
         </div>
 
@@ -326,7 +363,7 @@ export default function AdminQuoteDetailPage() {
           <textarea className="terms-editor" value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} />
         </div>
 
-        {/* --- NUEVO HISTORIAL DE ACTIVIDAD (LOGS) --- */}
+        {/* --- HISTORIAL Actividad --- */}
         <div className="ff-card">
           <div className="table-h"><Package size={18} color="#64748b"/> <span>Historial de Actividad</span></div>
           <div className="log-list">
@@ -343,29 +380,20 @@ export default function AdminQuoteDetailPage() {
                       <div className="ff-step-dot is-active"><div className="ff-note-indicator-dot"></div></div>
                       <div className="ff-note-tooltip ff-history-tooltip">
                         <div className="ff-tooltip-tag">CAMBIOS REALIZADOS</div>
-                       <div className="ff-history-changes-grid">
-  {Object.entries(log.changes || {})
-    .filter(([key, val]: [string, any]) => typeof val.new !== 'object')
-    .map(([key, val]: [string, any]) => {
-      // Si son términos, no mostramos el texto largo
-      const isTerms = key === 'terms';
-      
-      return (
-        <div key={key} className="ff-history-row">
-          <span className="ff-history-label">{FIELD_LABELS[key] || key}</span>
-          <div className="ff-history-vals">
-            <span className="ff-history-old">
-              {isTerms ? "Texto anterior" : String(val.old ?? '—')}
-            </span>
-            <ArrowRight size={10} style={{ opacity: 0.5 }} />
-            <span className="ff-history-new">
-              {isTerms ? "Texto actualizado" : String(val.new ?? '—')}
-            </span>
-          </div>
-        </div>
-      );
-    })}
-</div>
+                        <div className="ff-history-changes-grid">
+                          {Object.entries(log.changes || {})
+                            .filter(([key, val]: [string, any]) => typeof val.new !== 'object')
+                            .map(([key, val]: [string, any]) => (
+                                <div key={key} className="ff-history-row">
+                                  <span className="ff-history-label">{FIELD_LABELS[key] || key}</span>
+                                  <div className="ff-history-vals">
+                                    <span className="ff-history-old">{key === 'terms' ? "Texto" : String(val.old ?? '—')}</span>
+                                    <ArrowRight size={10} style={{ opacity: 0.5 }} />
+                                    <span className="ff-history-new">{key === 'terms' ? "Actualizado" : String(val.new ?? '—')}</span>
+                                  </div>
+                                </div>
+                            ))}
+                        </div>
                         <div className="ff-tooltip-arrow"></div>
                       </div>
                     </div>
@@ -394,9 +422,11 @@ export default function AdminQuoteDetailPage() {
         .head-actions { display: flex; gap: 20px; align-items: center; margin-right: 15px; border-right: 1px solid #e2e8f0; padding-right: 20px; }
         .kpi-box { text-align: right; }
         .kpi-val { display: block; font-size: 18px; font-weight: 900; color: #10b981; }
+        .txt-danger { color: #ef4444 !important; }
         .kpi-lab { font-size: 9px; font-weight: 800; color: #94a3b8; }
         .pdf-link { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 8px; font-weight: 700; display: flex; gap: 8px; align-items: center; text-decoration: none; cursor: pointer; }
         .btn-save { background: #10b981; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+        .btn-danger { background: #ef4444 !important; }
         .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid transparent; }
         .pill.green { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
         .pill.blue { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
@@ -405,10 +435,8 @@ export default function AdminQuoteDetailPage() {
         .pill.orange { background: #fff7ed; color: #c2410c; border-color: #ffedd5; }
         .strip { display: flex; gap: 20px; align-items: center; padding: 12px 20px; }
         .strip-label { width: 80px; font-size: 10px; font-weight: 900; color: #10b981; border-right: 1px solid #f1f5f9; }
-        .strip.blue .strip-label { color: #3b82f6; }
         .strip-grid { display: flex; flex: 1; gap: 15px; }
         .f { display: flex; flex-direction: column; gap: 5px; flex: 1; }
-        .f.small { flex: 0.4; }
         .f label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; display: flex; align-items: center; gap: 4px; }
         .f input, .f select, .toggle { height: 38px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0 10px; font-size: 13px; font-weight: 600; outline: none; }
         .toggle { display: flex; background: #f1f5f9; padding: 2px; height: 38px; border-radius: 6px; }
@@ -430,41 +458,37 @@ export default function AdminQuoteDetailPage() {
         .stat b.b { color: #3b82f6; }
         .stat.featured { background: #1e293b; color: #94a3b8; }
         .stat.featured b { color: white; }
+        .stat-danger { background: #450a0a !important; border: 2px solid #ef4444; }
+        .stat-sub { font-size: 9px; margin-top: 4px; opacity: 0.8; display: block; }
+        .ff-alert-banner { background: #fee2e2; border: 1px solid #fecaca; padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; color: #b91c1c; font-size: 13px; }
         .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 12px 25px; border-radius: 10px; z-index: 100; box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
         .spin { animation: spin 1s linear infinite; }
         .terms-editor { width: 100%; min-height: 100px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 13px; color: #475569; line-height: 1.5; outline: none; resize: vertical; background: #fffbeb; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
-        /* --- HISTORIAL Actividad --- */
+        /* --- HISTORIAL --- */
         .log-list { display: flex; flex-direction: column; }
         .no-logs { padding: 20px; text-align: center; color: #94a3b8; font-size: 13px; }
-        .log-item-wrapper { position: relative; }
-        .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #fff; border-bottom: 1px solid #f1f5f9; transition: 0.2s; }
-        .log-item:hover { background: #f8fafc; }
+        .log-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #fff; border-bottom: 1px solid #f1f5f9; }
         .log-meta { display: flex; flex-direction: column; }
-        .log-user { font-size: 12px; font-weight: 800; color: #1e293b; text-transform: capitalize; }
-        .log-date { font-size: 10px; color: #94a3b8; font-weight: 600; }
+        .log-user { font-size: 12px; font-weight: 800; color: #1e293b; }
+        .log-date { font-size: 10px; color: #94a3b8; }
         .log-action-area { display: flex; align-items: center; gap: 12px; }
-        .log-summary-text { font-size: 11px; font-weight: 700; color: #64748b; }
-
-        /* Tooltip Glass Apple Identity */
         .ff-dot-wrapper { height: 14px; width: 14px; position: relative; display: flex; align-items: center; justify-content: center; }
-        .ff-step-dot { width: 8px; height: 8px; background: #e2e8f0; border-radius: 50%; transition: 0.4s; position: relative; }
+        .ff-step-dot { width: 8px; height: 8px; background: #e2e8f0; border-radius: 50%; position: relative; }
         .ff-step-dot.is-active { background: #166534; transform: scale(1.2); }
         .ff-note-indicator-dot { position: absolute; top: -3px; right: -3px; width: 6px; height: 6px; background: #ea580c; border: 1.5px solid #fff; border-radius: 50%; }
         .ff-note-tooltip { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%) translateY(10px); width: 280px; background: #1e293b; padding: 14px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); z-index: 100; opacity: 0; visibility: hidden; transition: 0.2s; }
         .log-action-area:hover .ff-note-tooltip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
-        .ff-tooltip-tag { font-size: 9px; font-weight: 800; color: #94a3b8; margin-bottom: 8px; letter-spacing: 0.5px; }
-        .ff-tooltip-arrow { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 7px solid #1e293b; }
-        
-        /* Grid de cambios dentro del tooltip */
+        .ff-tooltip-tag { font-size: 9px; font-weight: 800; color: #94a3b8; margin-bottom: 8px; }
         .ff-history-changes-grid { display: flex; flex-direction: column; gap: 8px; }
         .ff-history-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; }
         .ff-history-label { font-size: 9px; color: #94a3b8; font-weight: 800; text-transform: uppercase; }
-        .ff-history-vals { display: flex; align-items: center; gap: 8px; font-family: monospace; }
+        .ff-history-vals { display: flex; align-items: center; gap: 8px; }
         .ff-history-old { color: #f87171; font-size: 10px; text-decoration: line-through; }
-        .ff-history-new { color: #4ade80; font-size: 11px; font-weight: 700; }
+        .ff-history-new { color: #4ade80; font-size: 11px; font-weight: 700; color: white; }
+        .ff-tooltip-arrow { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 7px solid #1e293b; }
       `}</style>
     </AdminLayout>
   ); 
