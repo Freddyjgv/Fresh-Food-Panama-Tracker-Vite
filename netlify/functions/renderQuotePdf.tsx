@@ -1,3 +1,4 @@
+// netlify/functions/renderQuotePdf.tsx
 import type { Handler } from "@netlify/functions";
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, renderToStream, Image } from '@react-pdf/renderer';
@@ -56,18 +57,20 @@ const styles = StyleSheet.create({
 });
 
 const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
-  // --- EXTRACCIÓN MAESTRA (NORMALIZACIÓN DE JOIN) ---
+  // --- EXTRACCIÓN MAESTRA ---
   const masterRaw = data.clients;
   const master = Array.isArray(masterRaw) ? masterRaw[0] : (masterRaw || {});
   const snapshot = data.client_snapshot || {};
 
-  // Ubicación del cliente (Ciudad y País)
   const city = master.city || snapshot.city || "";
   const country = master.country || snapshot.country || "";
   const locationLine = `${city}${city && country ? ", " : ""}${country}`.trim();
 
-  // --- DATOS DE PRODUCTO Y FICHA TÉCNICA (PROTECCIÓN DE DATOS) ---
-  // Buscamos en 'items_snapshot' o en el objeto raíz de la quote
+  // --- CORRECCIÓN DE TOTALIZACIÓN ---
+  // Buscamos el valor de venta tal cual está guardado en el objeto 'totals' o campos directos
+  const finalTotal = data.totals?.grand_total || data.totals?.total || data.total_amount || 0;
+
+  // --- DATOS DE PRODUCTO ---
   const item = (data.items_snapshot && data.items_snapshot[0]) || {};
   const specs = data.product_details || {};
   
@@ -109,7 +112,7 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
           </View>
         </View>
 
-        {/* INFO CLIENTE CON CIUDAD Y PAÍS */}
+        {/* INFO CLIENTE */}
         <View style={styles.gridContainer}>
           <View style={styles.gridCol}>
             <Text style={styles.sectionLabel}>Consignatario / Importador</Text>
@@ -131,7 +134,7 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
           </View>
         </View>
 
-        {/* FICHA TÉCNICA (SINCRONIZADA) */}
+        {/* FICHA TÉCNICA */}
         <Text style={styles.sectionLabel}>Especificaciones de Calidad</Text>
         <View style={styles.techGrid}>
           <View style={styles.techItem}><Text style={styles.techLabel}>Variedad</Text><Text style={styles.techValue}>{variety}</Text></View>
@@ -152,7 +155,7 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
           </View>
           <Text style={{ flex: 1, textAlign: 'center' }}>{data.boxes || 0}</Text>
           <Text style={{ flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: COLORS.PRIMARY }}>
-            $ {Number(data.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            $ {Number(finalTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </Text>
         </View>
 
@@ -165,7 +168,7 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
             </View>
             <View style={styles.totalContainer}>
               <Text style={styles.totalLabel}>Monto Total a Pagar</Text>
-              <Text style={styles.totalAmount}>$ {Number(data.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Text>
+              <Text style={styles.totalAmount}>$ {Number(finalTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Text>
             </View>
           </View>
           <View style={styles.signatureRow}>

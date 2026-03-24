@@ -12,16 +12,22 @@
     "packageJson": {
       "dependencies": [
         "npm:@netlify/functions@^2.7.0",
+        "npm:@react-pdf/renderer@^4.3.2",
         "npm:@supabase/supabase-js@^2.98.0",
-        "npm:@types/pdfkit@~0.17.5",
-        "npm:@types/react@19.2.14",
+        "npm:@types/node@22",
+        "npm:@types/react-dom@^18.3.1",
+        "npm:@types/react@^18.3.1",
+        "npm:@vitejs/plugin-react@^6.0.1",
         "npm:axios@^1.13.6",
+        "npm:date-fns@^4.1.0",
         "npm:lucide-react@0.575",
-        "npm:next@^14.2.5",
         "npm:pdfkit@~0.17.2",
         "npm:react-dom@^18.3.1",
+        "npm:react-router-dom@^7.13.1",
         "npm:react@^18.3.1",
-        "npm:typescript@5.9.3"
+        "npm:recharts@^3.8.0",
+        "npm:typescript@5",
+        "npm:vite@8"
       ]
     }
   }
