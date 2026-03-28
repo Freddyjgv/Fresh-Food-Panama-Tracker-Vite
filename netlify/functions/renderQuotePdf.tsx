@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   tableHeader: { flexDirection: 'row', backgroundColor: COLORS.TEXT_MAIN, padding: 8, borderRadius: 4, marginBottom: 5 },
   th: { fontSize: 7, fontWeight: 'bold', color: '#ffffff', textTransform: 'uppercase' },
   tableRow: { flexDirection: 'row', padding: 8, borderBottom: `1 solid ${COLORS.BG_SOFT}`, alignItems: 'center' },
-  prodName: { fontSize: 10, fontWeight: 'bold', color: COLORS.TEXT_MAIN, textTransform: 'uppercase' },
+  prodName: { fontSize: 9, fontWeight: 'bold', color: COLORS.TEXT_MAIN, textTransform: 'uppercase' },
   footerSection: { position: 'absolute', bottom: '15mm', left: '15mm', right: '15mm' },
   footerTop: { flexDirection: 'row', justifyContent: 'space-between', borderTop: `1 solid ${COLORS.BORDER}`, paddingTop: 15 },
   termsBox: { maxWidth: '60%' },
@@ -62,13 +62,11 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
   const master = Array.isArray(masterRaw) ? masterRaw[0] : (masterRaw || {});
   const snapshot = data.client_snapshot || {};
 
-  const city = master.city || snapshot.city || "";
-  const country = master.country || snapshot.country || "";
-  const locationLine = `${city}${city && country ? ", " : ""}${country}`.trim();
-
-  // --- CORRECCIÓN DE TOTALIZACIÓN ---
-  // Buscamos el valor de venta tal cual está guardado en el objeto 'totals' o campos directos
+  // --- LÓGICA DE PRECIOS Y LOGÍSTICA ---
   const finalTotal = data.totals?.grand_total || data.totals?.total || data.total_amount || 0;
+  const totalBoxes = data.boxes || 0;
+  const unitPrice = totalBoxes > 0 ? (finalTotal / totalBoxes) : 0;
+  const totalWeight = data.weight_kg || data.total_weight || 0;
 
   // --- DATOS DE PRODUCTO ---
   const item = (data.items_snapshot && data.items_snapshot[0]) || {};
@@ -91,15 +89,16 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
     <Document title={`Cotizacion_${data.quote_number}`}>
       <Page size="LETTER" style={styles.page}>
         
-        {/* HEADER CORPORATIVO */}
+        {/* HEADER CORPORATIVO FRESH FOOD PANAMA */}
         <View style={styles.header}>
           <View>
             <Image src={path.join(brandDir, 'freshfood_logo.png')} style={styles.logo} />
             <View style={styles.companyInfo}>
-              <Text style={styles.companyName}>FRESH FOOD PANAMÁ, C.A.</Text>
-              <Text>RUC: 155716550-2-2022-DV 25</Text>
-              <Text>Panamá, República de Panamá</Text>
-              <Text style={{ color: COLORS.PRIMARY_LIGHT, fontWeight: 'bold' }}>exports@freshfoodpanama.com</Text>
+              <Text style={styles.companyName}>FRESH FOOD PANAMA, C.A</Text>
+              <Text>RUC: 2684372-1-845616 DV 30</Text>
+              <Text>Dirección: Calle 55, PH SFC 26, Obarrio</Text>
+              <Text>Ciudad de Panamá, Panama</Text>
+              <Text style={{ color: COLORS.PRIMARY, fontWeight: 'bold', marginTop: 2 }}>email: administracion@freshfoodpanama.com</Text>
             </View>
           </View>
           <View style={styles.headerRight}>
@@ -120,41 +119,44 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
             <View style={styles.gridText}>
               <Text style={{ fontWeight: 'bold' }}>{master.legal_name || "Razón Social no definida"}</Text>
               <Text>ID Fiscal: {master.tax_id || "SIN TAX ID"}</Text>
-              {locationLine && <Text>Ubicación: {locationLine}</Text>}
               <Text>Dirección: {master.address || "Dirección no definida"}</Text>
             </View>
           </View>
           <View style={styles.gridCol}>
             <Text style={styles.sectionLabel}>Logística y Entrega</Text>
             <View style={styles.gridText}>
-              <Text>Incoterm: {data.totals?.meta?.incoterm || master.default_incoterm || "CIP"} 2020</Text>
+              <Text>Incoterm: {data.totals?.meta?.incoterm || master.default_incoterm || "FOB"}</Text>
               <Text>Modo: {data.mode === 'AIR' ? 'Carga Aérea' : 'Carga Marítima'}</Text>
               <Text>Destino: {data.destination}</Text>
             </View>
           </View>
         </View>
 
-        {/* FICHA TÉCNICA */}
-        <Text style={styles.sectionLabel}>Especificaciones de Calidad</Text>
+        {/* FICHA TÉCNICA INCLUYENDO PESO ESTIMADO */}
+        <Text style={styles.sectionLabel}>Especificaciones de Calidad y Carga</Text>
         <View style={styles.techGrid}>
           <View style={styles.techItem}><Text style={styles.techLabel}>Variedad</Text><Text style={styles.techValue}>{variety}</Text></View>
-          <View style={styles.techItem}><Text style={styles.techLabel}>Calibre</Text><Text style={styles.techValue}>{caliber}</Text></View>
-          <View style={styles.techItem}><Text style={styles.techLabel}>Color</Text><Text style={styles.techValue}>{color}</Text></View>
-          <View style={styles.techItemLast}><Text style={styles.techLabel}>Grados Brix</Text><Text style={styles.techValue}>{brix}</Text></View>
+          <View style={styles.techItem}><Text style={styles.techLabel}>Calibre / Color</Text><Text style={styles.techValue}>{caliber} / {color}</Text></View>
+          <View style={styles.techItem}><Text style={styles.techLabel}>Grados Brix</Text><Text style={styles.techValue}>{brix}</Text></View>
+          <View style={styles.techItemLast}><Text style={styles.techLabel}>Peso Est. (KG)</Text><Text style={styles.techValue}>{totalWeight.toLocaleString()} kg</Text></View>
         </View>
 
-        {/* TABLA COMERCIAL */}
+        {/* TABLA COMERCIAL CON PRECIO UNITARIO */}
         <View style={styles.tableHeader}>
-          <Text style={[styles.th, { flex: 3 }]}>Descripción del Producto</Text>
-          <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>Cajas</Text>
-          <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>Subtotal (USD)</Text>
+          <Text style={[styles.th, { flex: 2.5 }]}>Descripción del Producto</Text>
+          <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>Cajas</Text>
+          <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>Precio Unit.</Text>
+          <Text style={[styles.th, { flex: 1.5, textAlign: 'right' }]}>Subtotal (USD)</Text>
         </View>
         <View style={styles.tableRow}>
-          <View style={{ flex: 3 }}>
+          <View style={{ flex: 2.5 }}>
             <Text style={styles.prodName}>{productLabel}</Text>
           </View>
-          <Text style={{ flex: 1, textAlign: 'center' }}>{data.boxes || 0}</Text>
-          <Text style={{ flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: COLORS.PRIMARY }}>
+          <Text style={{ flex: 0.8, textAlign: 'center' }}>{totalBoxes}</Text>
+          <Text style={{ flex: 1.2, textAlign: 'right' }}>
+            $ {unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </Text>
+          <Text style={{ flex: 1.5, textAlign: 'right', fontWeight: 'bold', color: COLORS.PRIMARY }}>
             $ {Number(finalTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </Text>
         </View>
@@ -164,7 +166,7 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
           <View style={styles.footerTop}>
             <View style={styles.termsBox}>
               <Text style={styles.termsTitle}>Términos y Condiciones</Text>
-              <Text style={styles.termsText}>{data.terms || "Sujeto a disponibilidad de espacio."}</Text>
+              <Text style={styles.termsText}>{data.terms || "Sujeto a disponibilidad de espacio y confirmación de reserva."}</Text>
             </View>
             <View style={styles.totalContainer}>
               <Text style={styles.totalLabel}>Monto Total a Pagar</Text>
@@ -173,7 +175,7 @@ const PdfTemplate = ({ data, brandDir }: { data: any, brandDir: string }) => {
           </View>
           <View style={styles.signatureRow}>
             <Text style={{ fontSize: 7, color: COLORS.TEXT_LIGHT }}>Fresh Food Panamá - Exportación Premium</Text>
-            <Text style={styles.signatureLine}>Firma Autorizada</Text>
+            
           </View>
         </View>
 

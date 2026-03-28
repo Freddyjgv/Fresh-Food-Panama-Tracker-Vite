@@ -4,8 +4,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { AdminLayout, notify } from '@/components/AdminLayout';
 import { 
   Plus, Calculator, KeyRound, Mail, Loader2, 
-  ChevronRight, Search, X, Users, Globe, 
-  SortAsc, ShieldCheck, Building2, UserCheck, Trash2
+  Search, X, Users, SortAsc, ShieldCheck, Building2, 
+  UserCheck, Trash2, UserPlus 
 } from 'lucide-react';
 
 // MODALES
@@ -14,37 +14,13 @@ import { NewClientModal } from '@/components/clients/NewClientModal';
 
 const getFlag = (country: string) => {
   const flags: Record<string, string> = {
-   // Origen y América
-    'Panamá': '🇵🇦', 
-    'España': '🇪🇸', 
-    'Colombia': '🇨🇴', 
-    'Ecuador': '🇪🇨', 
-    'Costa Rica': '🇨🇷', 
-    'Chile': '🇨🇱', 
-    'México': '🇲🇽',
-    
-    // Norteamérica
-    'USA': '🇺🇸',
-    'Estados Unidos': '🇺🇸',
-    'United States': '🇺🇸',
-
-    // Top 15 Europa (Comercial/Importación)
-    'Alemania': '🇩🇪',
-    'Francia': '🇫🇷',
-    'Reino Unido': '🇬🇧',
-    'Italia': '🇮🇹',
-    'Países Bajos': '🇳🇱',
-    'Holanda': '🇳🇱',
-    'Bélgica': '🇧🇪',
-    'Suiza': '🇨🇭',
-    'Polonia': '🇵🇱',
-    'Suecia': '🇸🇪',
-    'Noruega': '🇳🇴',
-    'Austria': '🇦🇹',
-    'Portugal': '🇵🇹',
-    'Irlanda': '🇮🇪',
-    'Dinamarca': '🇩🇰',
-    'Finlandia': '🇫🇮'
+    'Panamá': '🇵🇦', 'España': '🇪🇸', 'Colombia': '🇨🇴', 'Ecuador': '🇪🇨', 
+    'Costa Rica': '🇨🇷', 'Chile': '🇨🇱', 'México': '🇲🇽', 'USA': '🇺🇸',
+    'Estados Unidos': '🇺🇸', 'United States': '🇺🇸', 'Alemania': '🇩🇪',
+    'Francia': '🇫🇷', 'Reino Unido': '🇬🇧', 'Italia': '🇮🇹', 'Países Bajos': '🇳🇱',
+    'Holanda': '🇳🇱', 'Bélgica': '🇧🇪', 'Suiza': '🇨🇭', 'Polonia': '🇵🇱',
+    'Suecia': '🇸🇪', 'Noruega': '🇳🇴', 'Austria': '🇦🇹', 'Portugal': '🇵🇹',
+    'Irlanda': '🇮🇪', 'Dinamarca': '🇩🇰', 'Finlandia': '🇫🇮'
   };
   return flags[country] || '🌐';
 };
@@ -64,6 +40,7 @@ export default function ClientsIndex() {
   const [activeTab, setActiveTab] = useState<'clients' | 'staff'>('clients');
   const [dataList, setDataList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
 
@@ -99,15 +76,51 @@ export default function ClientsIndex() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const handleInviteClient = async (e: React.MouseEvent, item: any) => {
+  e.stopPropagation();
+  if (!item.contact_email) return notify("El cliente no tiene un email válido", "error");
+  if (!window.confirm(`¿Enviar invitación oficial para ${item.name}?`)) return;
+
+  setInvitingId(item.id);
+  try {
+    // 1. OBTENER LA SESIÓN ACTUAL PARA EL TOKEN
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      throw new Error("Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.");
+    }
+
+    const response = await fetch('/.netlify/functions/inviteUser', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 2. ENVIAR EL TOKEN EN LOS HEADERS
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        email: item.contact_email,
+        full_name: item.contact_name || item.name,
+        role: 'client',
+        client_id: item.id
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Error al procesar invitación");
+
+    notify("Invitación enviada exitosamente", "success");
+    fetchData(); 
+  } catch (err: any) {
+    notify(err.message, "error");
+  } finally {
+    setInvitingId(null);
+  }
+};
+
   const filteredData = useMemo(() => {
     return dataList.filter(item => {
       const search = q.toLowerCase();
-      const textToSearch = (
-        item?.name || 
-        item?.full_name || 
-        item?.email || 
-        ""
-      ).toLowerCase();
+      const textToSearch = (item?.name || item?.full_name || item?.email || "").toLowerCase();
       return textToSearch.includes(search);
     });
   }, [dataList, q]);
@@ -124,31 +137,24 @@ export default function ClientsIndex() {
     }
   };
 
-  // FUNCIÓN DE ELIMINACIÓN UNIFICADA
   const handleDelete = async (e: React.MouseEvent, item: any) => {
     e.stopPropagation();
     const isStaff = activeTab === 'staff';
     const idToDelete = isStaff ? item.user_id : item.id;
     const nameToDisplay = isStaff ? (item.full_name || item.email) : item.name;
-    const table = isStaff ? 'profiles' : 'clients';
-    const column = isStaff ? 'user_id' : 'id';
-
     if (!idToDelete) return;
-
-    if (!window.confirm(`¿ESTÁS SEGURO? Se eliminará permanentemente a "${nameToDisplay}" de la base de datos. Esta acción no se puede deshacer.`)) return;
+    if (!window.confirm(`¿ESTÁS SEGURO? Se eliminará permanentemente a "${nameToDisplay}".`)) return;
 
     try {
       const { error } = await supabase
-        .from(table)
+        .from(isStaff ? 'profiles' : 'clients')
         .delete()
-        .eq(column, idToDelete);
-
+        .eq(isStaff ? 'user_id' : 'id', idToDelete);
       if (error) throw error;
-
-      notify("Registro eliminado con éxito", "success");
+      notify("Registro eliminado", "success");
       setDataList(prev => prev.filter(i => (isStaff ? i.user_id : i.id) !== idToDelete));
     } catch (err: any) {
-      notify("Error al eliminar: Verifica permisos de Superadmin", "error");
+      notify("Error al eliminar", "error");
     }
   };
 
@@ -167,7 +173,7 @@ export default function ClientsIndex() {
           </div>
           {activeTab === 'clients' && (
             <button className="btn-main-action" onClick={() => setIsNewClientModalOpen(true)}>
-              <Plus size={20} strokeWidth={2} /> Nuevo Cliente
+              <Plus size={20} /> Nuevo Cliente
             </button>
           )}
         </div>
@@ -196,32 +202,20 @@ export default function ClientsIndex() {
 
         <div className="quotes-list-container">
           {loading ? (
-            <><ClientSkeleton /><ClientSkeleton /><ClientSkeleton /><ClientSkeleton /><ClientSkeleton /></>
+            <><ClientSkeleton /><ClientSkeleton /><ClientSkeleton /></>
           ) : (
             filteredData.map((item) => {
               const isStaff = activeTab === 'staff';
               const email = isStaff ? item?.email : item?.contact_email;
-              const name = isStaff 
-                ? (item?.full_name || item?.email?.split('@')[0].toUpperCase() || 'ADMIN') 
-                : (item?.name || 'S/N');
-              
-              const sub = isStaff 
-                ? (item?.position || `ACCESO: ${item?.role?.toUpperCase() || 'ADMIN'}`) 
-                : (item?.tax_id || 'SIN TAX ID');
-                
+              const name = isStaff ? (item?.full_name || 'ADMIN') : (item?.name || 'S/N');
+              const sub = isStaff ? (item?.position || 'STAFF') : (item?.tax_id || 'SIN TAX ID');
               const rowId = isStaff ? item?.user_id : item?.id;
 
               return (
                 <div 
-                  key={rowId || `item-${Math.random()}`} 
+                  key={rowId || Math.random()} 
                   className="quote-row-item row-interactive" 
-                  onClick={() => {
-                    if (isStaff) {
-                      navigate(`/admin/staff/${rowId}`);
-                    } else {
-                      navigate(`/admin/users/${rowId}`);
-                    }
-                  }}
+                  onClick={() => navigate(isStaff ? `/admin/staff/${rowId}` : `/admin/users/${rowId}`)}
                 >
                   <div className="col-ident">
                     <div className="client-profile-box">
@@ -230,7 +224,7 @@ export default function ClientsIndex() {
                           <img src={`https://oqgkbduqztrpfhfclker.supabase.co/storage/v1/object/public/client-logos/${item.logo_url}`} alt="logo" />
                         ) : (
                           <div className={`avatar-initials-mini ${isStaff ? 'staff-bg' : ''}`}>
-                            {(name || 'U').charAt(0).toUpperCase()}
+                            {name.charAt(0).toUpperCase()}
                           </div>
                         )}
                       </div>
@@ -242,9 +236,7 @@ export default function ClientsIndex() {
                   </div>
 
                   <div className="col-client">
-                    {email ? (
-                      <div className="contact-info-pill"><Mail size={12} /><span>{email}</span></div>
-                    ) : <span className="empty-label">Sin email</span>}
+                    {email ? <div className="contact-info-pill"><Mail size={12} /><span>{email}</span></div> : <span className="empty-label">Sin email</span>}
                   </div>
 
                   <div className="col-route">
@@ -259,24 +251,37 @@ export default function ClientsIndex() {
                   </div>
 
                   <div className="col-amount">
-                    <span className="status-pill-client active">Activo</span>
+                    {!isStaff && (
+                      <span className={`status-pill-client ${item.has_platform_access ? 'active' : 'pending'}`}>
+                        {item.has_platform_access ? 'Acceso Portal' : 'Solo Directorio'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="col-status">
                     <div className="actions-inline">
+                      {/* BOTÓN DE INVITACIÓN: Solo si es cliente y no tiene acceso */}
+                      {!isStaff && !item.has_platform_access && (
+                        <button 
+                          className="btn-circle blue-invite" 
+                          onClick={(e) => handleInviteClient(e, item)}
+                          title="Invitar al portal"
+                          disabled={invitingId === item.id}
+                        >
+                          {invitingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                        </button>
+                      )}
+
                       {!isStaff && (
                         <button className="btn-circle orange" onClick={(e) => { e.stopPropagation(); setSelectedClientId(item.id); setIsQuoteModalOpen(true); }}><Calculator size={14} /></button>
                       )}
-                      <button className="btn-circle green" onClick={(e) => { e.stopPropagation(); handleResetPassword(email); }}><KeyRound size={14} /></button>
                       
-                      {/* BOTÓN ELIMINAR (CLIENTE O STAFF) */}
-                      <button 
-                        className="btn-circle red-delete" 
-                        onClick={(e) => handleDelete(e, item)}
-                        title="Eliminar registro"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {/* Solo mostrar reset password si ya tiene acceso o es staff */}
+                      {(isStaff || item.has_platform_access) && (
+                        <button className="btn-circle green" onClick={(e) => { e.stopPropagation(); handleResetPassword(email); }}><KeyRound size={14} /></button>
+                      )}
+                      
+                      <button className="btn-circle red-delete" onClick={(e) => handleDelete(e, item)}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -296,10 +301,9 @@ export default function ClientsIndex() {
         .tabs-navigation-pro button { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border: none; background: none; border-radius: 12px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; transition: 0.3s; }
         .tabs-navigation-pro button.active { background: white; color: #0f172a; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         .btn-main-action { background: #0f172a; color: white; border: none; padding: 12px 24px; border-radius: 14px; font-weight: 700; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: 0.3s; box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.2); }
-        .btn-main-action:hover { transform: translateY(-2px); background: #1e293b; }
         .stats-dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; }
         .metric-card { background: white; padding: 20px; border-radius: 20px; border: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-        .metric-label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+        .metric-label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
         .metric-card .value { font-size: 28px; font-weight: 800; color: #0f172a; }
         .metric-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; }
         .metric-icon.blue { background: #eff6ff; color: #3b82f6; }
@@ -307,37 +311,34 @@ export default function ClientsIndex() {
         .filters-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 25px; }
         .search-container { position: relative; flex: 1; }
         .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
-        .search-container input { width: 100%; padding: 12px 16px 12px 48px; border-radius: 16px; border: 1px solid #e2e8f0; background: white; font-size: 14px; outline: none; font-weight: 600; }
+        .search-container input { width: 100%; padding: 12px 16px 12px 48px; border-radius: 16px; border: 1px solid #e2e8f0; background: white; font-size: 14px; font-weight: 600; outline: none; }
         .quotes-list-container { display: flex; flex-direction: column; gap: 12px; }
-        .quote-row-item { background: white; padding: 16px 24px; border-radius: 20px; border: 1px solid #f1f5f9; display: grid; grid-template-columns: 1.5fr 1.5fr 1fr 0.8fr 1fr; align-items: center; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .quote-row-item:hover { border-color: #cbd5e1; transform: translateX(8px); box-shadow: 0 10px 25px rgba(0,0,0,0.04); }
+        .quote-row-item { background: white; padding: 16px 24px; border-radius: 20px; border: 1px solid #f1f5f9; display: grid; grid-template-columns: 1.5fr 1.5fr 1fr 0.8fr 1fr; align-items: center; cursor: pointer; transition: 0.3s; }
+        .quote-row-item:hover { border-color: #cbd5e1; transform: translateX(8px); }
         .client-profile-box { display: flex; align-items: center; gap: 14px; }
-        .avatar-mini { width: 44px; height: 44px; border-radius: 12px; border: 1px solid #f1f5f9; overflow: hidden; background: #f8fafc; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .avatar-mini { width: 44px; height: 44px; border-radius: 12px; border: 1px solid #f1f5f9; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; }
         .avatar-mini img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
-        .avatar-initials-mini { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #0f172a; color: white; font-size: 16px; font-weight: 800; }
+        .avatar-initials-mini { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #0f172a; color: white; font-weight: 800; }
         .avatar-initials-mini.staff-bg { background: #3b82f6; }
-        .client-name-text { display: block; font-size: 14px; font-weight: 700; color: #1e293b; }
-        .tax-id-sub { font-size: 11px; color: #94a3b8; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+        .client-name-text { font-size: 14px; font-weight: 700; color: #1e293b; }
+        .tax-id-sub { font-size: 11px; color: #94a3b8; font-weight: 600; font-family: monospace; }
         .contact-info-pill { display: inline-flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 6px 12px; border-radius: 10px; font-size: 12px; color: #475569; font-weight: 600; }
         .location-badge { display: flex; align-items: center; gap: 8px; }
         .country-name { font-size: 12px; font-weight: 700; color: #475569; }
         .role-badge-pill { font-size: 10px; font-weight: 800; padding: 4px 12px; border-radius: 8px; text-transform: uppercase; }
         .role-badge-pill.superadmin { background: #fef2f2; color: #ef4444; }
         .role-badge-pill.admin { background: #eff6ff; color: #3b82f6; }
-        .status-pill-client { padding: 5px 12px; border-radius: 10px; font-size: 9px; font-weight: 900; text-transform: uppercase; background: rgba(16, 185, 129, 0.1); color: #059669; }
-        .actions-inline { display: flex; gap: 10px; margin-right: 15px; }
-        .btn-circle { width: 36px; height: 36px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; background: white; color: #94a3b8; transition: 0.2s; }
-        .btn-circle:hover { transform: scale(1.1); color: #0f172a; }
-        .btn-circle.red-delete:hover { background: #fef2f2; color: #ef4444; border-color: #fee2e2; }
-        .col-status { display: flex; align-items: center; justify-content: flex-end; }
-        .skeleton-row { pointer-events: none; border-color: #f1f5f9 !important; }
-        .skel-avatar { width: 44px; height: 44px; background: #f1f5f9; border-radius: 12px; position: relative; overflow: hidden; }
-        .skel-line { height: 12px; background: #f1f5f9; border-radius: 4px; margin-bottom: 8px; position: relative; overflow: hidden; }
-        .skel-pill { height: 24px; background: #f1f5f9; border-radius: 50px; position: relative; overflow: hidden; }
-        .skel-avatar::after, .skel-line::after, .skel-pill::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); animation: shimmer 1.5s infinite; }
+        .status-pill-client { padding: 5px 12px; border-radius: 10px; font-size: 9px; font-weight: 900; text-transform: uppercase; }
+        .status-pill-client.active { background: rgba(16, 185, 129, 0.1); color: #059669; }
+        .status-pill-client.pending { background: #f1f5f9; color: #64748b; }
+        .actions-inline { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-circle { width: 36px; height: 36px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; background: white; color: #94a3b8; transition: 0.2s; cursor: pointer; }
+        .btn-circle:hover { transform: scale(1.1); color: #0f172a; border-color: #cbd5e1; }
+        .btn-circle.blue-invite { color: #3b82f6; border-color: #dbeafe; }
+        .btn-circle.blue-invite:hover { background: #eff6ff; }
+        .btn-circle.red-delete:hover { background: #fef2f2; color: #ef4444; }
+        .skeleton-row { pointer-events: none; opacity: 0.6; }
         @keyframes shimmer { 100% { transform: translateX(100%); } }
-        .w10 { width: 10%; } .w40 { width: 40%; } .w50 { width: 50%; } .w60 { width: 60%; } .w70 { width: 70%; } .w80 { width: 80%; }
-        .empty-label { color: #cbd5e1; font-size: 12px; font-style: italic; }
       `}</style>
     </AdminLayout>
   );

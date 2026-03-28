@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { supabase } from "@/lib/supabaseClient";
 import "./styles/globals.css";
 import { LanguageProvider } from "@/lib/uiLanguage";
-const StaffDetail = lazy(() => import('@/pages/admin/staff/StaffDetail'));
 
 // --- COMPONENTE DE PROTECCIÓN DE RUTAS ---
 const ProtectedRoute = ({ children, requiredRole }: { children: JSX.Element, requiredRole?: 'admin' | 'client' }) => {
@@ -16,12 +15,10 @@ const ProtectedRoute = ({ children, requiredRole }: { children: JSX.Element, req
     const checkAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
         if (!session) {
           if (isMounted) { setAuthorized(false); setLoading(false); }
           return;
         }
-
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
@@ -32,8 +29,6 @@ const ProtectedRoute = ({ children, requiredRole }: { children: JSX.Element, req
           if (!profile) {
             setAuthorized(false);
           } else {
-            // ARREGLO 1: El Admin siempre está autorizado para ver rutas de cliente
-            // Si la ruta pide 'client', un 'admin' también puede entrar.
             const userRole = profile.role?.toLowerCase();
             if (requiredRole === 'client') {
               setAuthorized(userRole === 'client' || userRole === 'admin' || userRole === 'superadmin');
@@ -53,23 +48,20 @@ const ProtectedRoute = ({ children, requiredRole }: { children: JSX.Element, req
     return () => { isMounted = false; };
   }, [location.pathname, requiredRole]);
 
-  if (loading) return (
-    <div className="ff-loader-full">
-      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-emerald-500"></div>
-    </div>
-  );
-
+  if (loading) return <div className="ff-loader-full"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-emerald-500"></div></div>;
   if (!authorized) return <Navigate to="/login" state={{ from: location }} replace />;
-
   return children;
 };
 
 const PageLoader = () => <div className="ff-loader-full"><div className="animate-pulse text-emerald-500 font-bold">CARGANDO...</div></div>;
 
 // --- CARGA DINÁMICA ---
-const ClientShipments = lazy(() => import('./pages/shipments/ShipmentsPage'));
-// ARREGLO 2: Debes crear/importar el detalle para el cliente o se irá al 404
-const ClientShipmentDetail = lazy(() => import('./pages/shipments/[id]')); 
+const ResetPasswordPage = lazy(() => import('./pages/auth/reset')); // <--- NUEVA RUTA CARGADA
+const ClientDashboard = lazy(() => import('./pages/clients/Dashboard'));
+const ClientQuotesIndex = lazy(() => import('./pages/clients/quotes/index'));
+const ClientQuoteDetail = lazy(() => import('./pages/clients/quotes/[id]'));
+const ClientShipmentsIndex = lazy(() => import('./pages/clients/shipments/index'));
+const ClientShipmentDetail = lazy(() => import('./pages/clients/shipments/[id]'));
 
 const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'));
 const AdminLogin = lazy(() => import('@/pages/admin/login'));
@@ -80,6 +72,7 @@ const AdminQuotesIndex = lazy(() => import('@/pages/admin/quotes/index'));
 const AdminQuoteDetailPage = lazy(() => import('@/pages/admin/quotes/[id]'));
 const AdminUsers = lazy(() => import('@/pages/admin/users/index'));
 const AdminUserDetail = lazy(() => import('@/pages/admin/users/UserDetail'));
+const StaffDetail = lazy(() => import('@/pages/admin/staff/StaffDetail'));
 
 export default function App() {
   return (
@@ -87,13 +80,21 @@ export default function App() {
       <Router>
         <Suspense fallback={<PageLoader />}>
           <Routes>
+            {/* PUBLIC & AUTH ROUTES */}
             <Route path="/login" element={<ClientLogin />} />
             <Route path="/admin/login" element={<AdminLogin />} />
+            
+            {/* ESTA ES LA RUTA QUE SOLUCIONA EL 404. 
+                Debe coincidir con el redirectTo de tu invitación.
+            */}
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* --- PANEL DE CLIENTES --- */}
-            <Route path="/shipments" element={<ProtectedRoute requiredRole="client"><ClientShipments /></ProtectedRoute>} />
-            {/* ARREGLO 3: Ruta de detalle para cliente añadida para evitar el 404 */}
-            <Route path="/shipments/:id" element={<ProtectedRoute requiredRole="client"><ClientShipmentDetail /></ProtectedRoute>} />
+            <Route path="/clients/dashboard" element={<ProtectedRoute requiredRole="client"><ClientDashboard /></ProtectedRoute>} />
+            <Route path="/clients/quotes" element={<ProtectedRoute requiredRole="client"><ClientQuotesIndex /></ProtectedRoute>} />
+            <Route path="/clients/quotes/:id" element={<ProtectedRoute requiredRole="client"><ClientQuoteDetail /></ProtectedRoute>} />
+            <Route path="/clients/shipments" element={<ProtectedRoute requiredRole="client"><ClientShipmentsIndex /></ProtectedRoute>} />
+            <Route path="/clients/shipments/:id" element={<ProtectedRoute requiredRole="client"><ClientShipmentDetail /></ProtectedRoute>} />
 
             {/* --- RUTAS ADMINISTRATIVAS --- */}
             <Route path="/admin/dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
@@ -105,12 +106,44 @@ export default function App() {
             <Route path="/admin/users/:id" element={<ProtectedRoute requiredRole="admin"><AdminUserDetail /></ProtectedRoute>} />
             <Route path="/admin/staff/:id" element={<ProtectedRoute requiredRole="admin"><StaffDetail /></ProtectedRoute>} />
 
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            {/* --- LÓGICA DE REDIRECCIÓN --- */}
+            <Route path="/" element={<HomeRedirect />} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="*" element={<div className="p-20 text-center"><h1>404</h1><p>No encontrado</p></div>} />
+            <Route path="/shipments" element={<Navigate to="/clients/shipments" replace />} />
+            <Route path="/shipments/:id" element={<Navigate to="/clients/shipments/:id" replace />} />
+
+            <Route path="*" element={<div className="p-20 text-center"><h1>404</h1><p>Documento o Página no encontrada</p></div>} />
           </Routes>
         </Suspense>
       </Router>
     </LanguageProvider>
   );
 }
+
+// COMPONENTE HELPER PARA LA REDIRECCIÓN INICIAL
+const HomeRedirect = () => {
+  const [destination, setDestination] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getHome = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return setDestination("/login");
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (profile?.role === 'admin' || profile?.role === 'superadmin') {
+        setDestination("/admin/dashboard");
+      } else {
+        setDestination("/clients/dashboard");
+      }
+    };
+    getHome();
+  }, []);
+
+  if (!destination) return <PageLoader />;
+  return <Navigate to={destination} replace />;
+};

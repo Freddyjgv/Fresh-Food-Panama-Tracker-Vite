@@ -10,7 +10,12 @@ export const handler: Handler = async (event) => {
     const { user, profile } = await getUserAndProfile(event);
     if (!user || !profile) return text(401, "Unauthorized");
     
-    if (!isPrivilegedRole(profile.role)) return text(403, "Forbidden");
+    // --- CAMBIO CLAVE: LÓGICA DE ACCESO DUAL ---
+    const isAdmin = isPrivilegedRole(profile.role);
+    const isClient = profile.role === 'client';
+
+    // Si no es admin ni cliente, fuera.
+    if (!isAdmin && !isClient) return text(403, "Forbidden");
 
     const pageSize = 20;
     const page = Math.max(1, Number(event.queryStringParameters?.page || 1));
@@ -21,7 +26,6 @@ export const handler: Handler = async (event) => {
     const fromIndex = (page - 1) * pageSize;
     const toIndex = fromIndex + pageSize - 1;
 
-    // 4. Construcción de Query - USANDO ALIAS code:quote_number
     let query = sbAdmin
       .from("quotes")
       .select(`
@@ -46,9 +50,18 @@ export const handler: Handler = async (event) => {
         )
       `, { count: "exact" });
 
+    // --- FILTRO DE SEGURIDAD PARA CLIENTES ---
+    if (isClient) {
+      // Si es cliente, OBLIGATORIAMENTE filtramos por su client_id
+      if (!profile.client_id) return json(200, { items: [], total: 0 }); // Seguridad extra
+      query = query.eq("client_id", profile.client_id);
+      
+      // Además, el cliente no debería ver borradores internos (opcional pero recomendado)
+      // query = query.neq("status", "draft"); 
+    }
+
     if (status) query = query.eq("status", status);
     
-    // Búsqueda: Ajustamos para buscar en quote_number si hay un query 'q'
     if (q) {
       query = query.or(`destination.ilike.%${q}%, quote_number.ilike.%${q}%`);
     }
@@ -60,10 +73,9 @@ export const handler: Handler = async (event) => {
     const { data, count, error } = await query;
     if (error) throw error;
 
-    // 5. Mapeo de Datos (Data Transformation)
     const items = (data || []).map((r: any) => ({
       id: r.id,
-      quote_number: r.code || "S/N", // Mapeamos el alias 'code' al nombre estándar
+      quote_number: r.code || "S/N",
       created_at: r.created_at,
       updated_at: r.updated_at,
       status: r.status,
@@ -79,15 +91,12 @@ export const handler: Handler = async (event) => {
       total: r.total || 0,
     }));
 
-    const total = count ?? 0;
-    const totalPages = Math.ceil(total / pageSize);
-
     return json(200, {
       items,
       page,
       pageSize,
-      total,
-      totalPages,
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / pageSize),
       sort: { field: "created_at", dir },
     });
 

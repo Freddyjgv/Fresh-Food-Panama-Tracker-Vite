@@ -4,8 +4,8 @@ import { supabase } from "../lib/supabaseClient";
 import { getApiBase } from "../lib/apiBase";
 import { useUILang } from "../lib/uiLanguage";
 import {
-  Package, Globe, ChevronDown, LogOut, Search, Loader2,
-  UserCircle2, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, ArrowRight, Ship
+  Package, Globe, ChevronDown, LogOut,
+  UserCircle2, ChevronLeft, ChevronRight, FileText, LayoutDashboard
 } from "lucide-react";
 
 const LOGO_SRC = "/brand/freshfood-logo.svg";
@@ -29,6 +29,25 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
   
   const menuRef = useRef<HTMLDivElement | null>(null);
 
+  // --- NAVEGACIÓN RESTAURADA + DASHBOARD ---
+  const nav = useMemo(() => [
+    { 
+      href: "/clients/dashboard", 
+      label: lang === "es" ? "Panel de Control" : "Dashboard", 
+      icon: LayoutDashboard 
+    },
+    { 
+      href: "/clients/shipments", 
+      label: lang === "es" ? "Mis Embarques" : "My Shipments", 
+      icon: Package 
+    },
+    { 
+      href: "/clients/quotes", 
+      label: lang === "es" ? "Mis Cotizaciones" : "My Quotes", 
+      icon: FileText 
+    },
+  ], [lang]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -44,24 +63,17 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
     navigate("/login");
   };
 
-  const nav = useMemo(() => [
-    { 
-      href: "/shipments", 
-      label: lang === "es" ? "Mis Embarques" : "My Shipments", 
-      icon: Package 
-    },
-  ], [lang]);
-
   useEffect(() => {
     try { if (localStorage.getItem(LS_KEY) === "1") setSideCollapsed(true); } catch {}
   }, []);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) { navigate("/login"); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { navigate("/login"); return; }
+      
       const res = await fetch(`${getApiBase()}/.netlify/functions/getMyProfile`, {
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.ok) {
         const json = await res.json();
@@ -75,7 +87,15 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
       <header className="ff-top">
         <div className="ff-top__inner">
           <div className="ff-top__left">
-            <img src={LOGO_SRC} alt="FF" width={40} height={40} className="ff-top__logo" onClick={() => navigate('/shipments')} style={{cursor:'pointer'}} />
+            <img 
+              src={LOGO_SRC} 
+              alt="FF" 
+              width={40} 
+              height={40} 
+              className="ff-top__logo" 
+              onClick={() => navigate('/clients/dashboard')} 
+              style={{cursor:'pointer'}} 
+            />
             <div className="ff-v-sep" style={{ width: '1px', height: '24px', background: '#e2e8f0', margin: '0 16px' }} />
             <div className="ff-top__titleWrap">
               {title && <h1 className="ff-top__title">{title}</h1>}
@@ -114,12 +134,15 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
       </header>
 
       <aside className="ff-side">
-        {/* ESPACIADOR SUPERIOR: Esto da el aire necesario antes del primer item */}
         <div className="ff-side__brand" style={{ height: '40px', display: 'flex', alignItems: 'center', padding: '0 16px', marginBottom: '12px' }}>
-             {!sideCollapsed && <span style={{ color: '#ffffff', fontWeight: 900, fontSize: '14px', letterSpacing: '1px', opacity: 0.5 }}>MENÚ PRINCIPAL</span>}
+             {!sideCollapsed && <span style={{ color: '#ffffff', fontWeight: 900, fontSize: '12px', letterSpacing: '1px', opacity: 0.6 }}>PORTAL CLIENTE</span>}
         </div>
 
-        <button type="button" className="ff-side__toggle" onClick={() => setSideCollapsed(!sideCollapsed)}>
+        <button type="button" className="ff-side__toggle" onClick={() => {
+            const newState = !sideCollapsed;
+            setSideCollapsed(newState);
+            localStorage.setItem(LS_KEY, newState ? "1" : "0");
+        }}>
           {sideCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
 
@@ -145,114 +168,41 @@ export function ClientLayout({ title, subtitle, children, wide = false }: Client
       </div>
 
       <style>{`
+        /* --- ESTILOS ORIGINALES RESTAURADOS --- */
         .ff-app { display: grid; grid-template-areas: "top top" "side main"; grid-template-columns: 240px 1fr; grid-template-rows: 64px 1fr; height: 100vh; }
         .ff-app.is-collapsed { grid-template-columns: 80px 1fr; }
         .ff-top { grid-area: top; background: white; border-bottom: 1px solid #eef2f6; position: sticky; top: 0; z-index: 100; }
         .ff-top__inner { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px; }
         
-        .ff-user { position: relative; }
-        .ff-user__btn { 
-          display: flex; align-items: center; gap: 8px; background: #f8fafc; 
-          border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 50px; 
-          cursor: pointer; color: #1e293b; font-weight: 600; font-size: 13px;
-          transition: 0.2s;
-        }
-        .ff-user__btn:hover { background: #f1f5f9; }
+        /* EL COLOR VERDE BOSQUE ORIGINAL */
+        .ff-side { grid-area: side; background: #284b2c; border-right: 1px solid #1f3a22; padding: 24px 12px; position: relative; display: flex; flex-direction: column; gap: 4px; z-index: 90; }
+        .ff-side__item { display: flex; align-items: center; gap: 16px; padding: 12px 16px; color: #ffffff; text-decoration: none; border-radius: 12px; font-size: 14px; font-weight: 500; transition: all 0.2s ease; position: relative; }
+        .ff-side__item:hover { background: rgba(255,255,255,0.1); color: #f59e0b; }
         
-        .ff-user__menu { 
-          position: absolute; top: calc(100% + 8px); right: 0; width: 220px; 
-          background: white; border: 1px solid #e2e8f0; border-radius: 12px; 
-          box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); padding: 8px; z-index: 1000;
-        }
-        .ff-user__info { padding: 8px 12px; }
-        .ff-user__label { font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 800; margin: 0; }
-        .ff-user__val { font-size: 12px; color: #1e293b; margin: 2px 0 0 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
-        .ff-user__sep { height: 1px; background: #f1f5f9; margin: 8px 0; }
+        /* EL COLOR VERDE ACTIVO ORIGINAL */
+        .ff-side__item.is-active { background: #3a5a3e; color: #ffffff; font-weight: 700; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); }
+        .ff-active-indicator { position: absolute; left: 0; top: 12px; bottom: 12px; width: 4px; background: #f59e0b; border-radius: 0 4px 4px 0; }
         
-        .ff-user__logout { 
-          width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-          border: none; background: transparent; color: #ef4444; font-size: 13px;
-          font-weight: 600; cursor: pointer; border-radius: 8px; transition: 0.2s;
-        }
-        .ff-user__logout:hover { background: #fef2f2; }
-
-        .ff-side { 
-          grid-area: side; 
-          background: #284b2c; 
-          border-right: 1px solid #1f3a22; 
-          padding: 24px 12px; 
-          position: relative; 
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          z-index: 90;
-        }
-
-        .ff-side__toggle {
-          position: absolute;
-          right: -12px;
-          top: 74px; /* Bajamos el botón de colapso para que no estorbe arriba */
-          width: 24px;
-          height: 24px;
-          background: #f59e0b;
-          border: none;
-          border-radius: 50%;
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          z-index: 100;
-        }
-
-        .ff-side__item { 
-          display: flex; 
-          align-items: center; 
-          gap: 16px; 
-          padding: 12px 16px; 
-          color: #ffffff; 
-          text-decoration: none; 
-          border-radius: 12px; 
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.2s ease; 
-          position: relative; 
-        }
-
-        .ff-side__item:hover { 
-          background: #3a5a3e; 
-          color: #f59e0b; 
-        }
-
-        .ff-side__item.is-active { 
-          background: #415f45; 
-          color: #ffffff; 
-          font-weight: 700; 
-        }
-
-        .ff-active-indicator { 
-          position: absolute; 
-          left: 0; 
-          top: 10px; 
-          bottom: 10px; 
-          width: 4px; 
-          background: #f59e0b; 
-          border-radius: 0 4px 4px 0; 
-        }
-
+        .ff-side__toggle { position: absolute; right: -12px; top: 74px; width: 24px; height: 24px; background: #f59e0b; border: none; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 100; }
+        
         .ff-main { grid-area: main; overflow-y: auto; background: #f8fafc; }
-        .ff-content { padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
-        .ff-content-wide { padding: 32px; max-width: 100%; margin: 0; width: 100%; }
+        .ff-content { padding: 32px; max-width: 1400px; margin: 0 auto; width: 100%; }
         .ff-top__title { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0; }
         .ff-top__sub { font-size: 11px; color: #64748b; }
-        .ff-chip { display: flex; align-items: center; gap: 6px; background: #f1f5f9; border: none; padding: 6px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; margin-right: 8px; }
+        .ff-chip { display: flex; align-items: center; gap: 6px; background: #f1f5f9; border: none; padding: 6px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; }
+        
+        /* USER MENU */
+        .ff-user__btn { display: flex; align-items: center; gap: 10px; background: none; border: none; cursor: pointer; }
+        .ff-user__email { font-size: 13px; font-weight: 600; color: #1e293b; }
+        .ff-user__menu { position: absolute; right: 0; top: 110%; width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); padding: 8px; z-index: 200; }
+        .ff-user__info { padding: 8px 12px; }
+        .ff-user__label { font-size: 10px; color: #94a3b8; text-transform: uppercase; margin: 0; }
+        .ff-user__val { font-size: 12px; font-weight: 700; color: #1e293b; margin: 2px 0 0; }
+        .ff-user__sep { height: 1px; background: #f1f5f9; margin: 8px 0; }
+        .ff-user__logout { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff1f2; color: #e11d48; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
 
-        /* Ajustes para estado colapsado */
-        .is-collapsed .ff-side__lbl, 
-        .is-collapsed .ff-side__brand { display: none; }
+        .is-collapsed .ff-side__lbl, .is-collapsed .ff-side__brand { display: none; }
         .is-collapsed .ff-side__item { justify-content: center; padding: 12px; }
-        .is-collapsed .ff-side__ico { margin: 0; }
       `}</style>
     </div>
   );
